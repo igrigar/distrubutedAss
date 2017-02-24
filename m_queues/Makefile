@@ -35,9 +35,10 @@ lib:
 	
 
 server:
-	$(CC) $(LDFLAGS) $(LDLIBS) src/server.c -o server
-	#$(CC) $(LDFLAGS) $(LDLIBS) $(CFLAGS) src/server.c -o server
+	$(CC) $(LDFLAGS) $(LDLIBS) $(CFLAGS) src/server.c -o server
 
 client:
-	$(CC) $(LDFLAGS) $(LDLIBS) src/client.c lib/array.c -o client
-	#$(CC) $(LDFLAGS) $(LDLIBS) $(CFLAGS) src/client.c -o client
+	$(CC) $(LDFLAGS)  $(LDLIBS) $(CFLAGS) src/client.c lib/array.c -o client
+
+clean:
+	rm server client
