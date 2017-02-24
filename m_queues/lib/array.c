@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <string.h>
 #include <mqueue.h>
 
@@ -22,7 +21,6 @@ char *cli_queue_name;
 int init(char *name, int n) {
     // We open the queue with the server if it didn't exist before.
     if (!server_queue)
-        //if ((server_queue = mq_open(srv_queue_name, O_WRONLY)) == -1) {
         if ((server_queue = mq_open("/dist_vec_queue", O_WRONLY)) == -1) {
             perror("[ERR] Open server queue");
             return -1;
@@ -33,8 +31,7 @@ int init(char *name, int n) {
         // Since the communication process takes place inside one machine we can
         // use the PID to identify the queue. Because the PID is unique we avoid
         // naming collisions when having several clients.
-        cli_queue_name = (char *) malloc(16);
-        bzero(cli_queue_name, 16);
+        cli_queue_name = (char *) calloc(16, sizeof(char));
         sprintf(cli_queue_name, "/%d", getpid());
 
         // We set the arributes of the client queue.
@@ -57,8 +54,10 @@ int init(char *name, int n) {
     memcpy(init_msg.vector_name, name, strlen(name));
     memcpy(init_msg.reponse_queue, cli_queue_name, strlen(cli_queue_name));
     init_msg.index = 0;
-    init_msg.vector_value = 0;
+    init_msg.vector_value = n;
     init_msg.error = 0;
+
+    // Sending the message.
     if (mq_send(server_queue, (const char *) &init_msg, sizeof(msg_t), 0) == -1) {
         perror("[ERR] Init message");
         return -1;
@@ -66,7 +65,7 @@ int init(char *name, int n) {
         0) == -1) {
         perror("[ERR] Init message");
         return -1;
-    } else if (init_response.error == -1){
+    } else if (init_response.error == -1) { // Receiving the response.
         perror("[ERR] Vector creation");
         return -1;
     }
@@ -82,6 +81,30 @@ int init(char *name, int n) {
  * @Return: 0 upon success; -1 otherwise.
  */
 int set(char *name, int i, int value) {
+    // Composition of the message.
+    msg_t set_msg, set_response;
+    bzero((char *) &set_msg, sizeof(msg_t)); // Clean the set_msg.
+
+    set_msg.service = SET;
+    memcpy(set_msg.vector_name, name, strlen(name));
+    memcpy(set_msg.reponse_queue, cli_queue_name, strlen(cli_queue_name));
+    set_msg.index = i;
+    set_msg.vector_value = value;
+    set_msg.error = 0;
+
+    // Sending the message.
+    if (mq_send(server_queue, (const char *) &set_msg, sizeof(msg_t), 0) == -1) {
+        perror("[ERR] Init message");
+        return -1;
+    } else if (mq_receive(client_queue, (char *) &set_response, sizeof(msg_t),
+        0) == -1) {
+        perror("[ERR] Init message");
+        return -1;
+    } else if (set_response.error == -1) { // Receiving the response.
+        perror("[ERR] Vector creation");
+        return -1;
+    }
+
     return 0;
 }
 
