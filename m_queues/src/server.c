@@ -2,12 +2,11 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include <pthread.h>
 #include <mqueue.h>
 
 #include "server.h"
 
-int main(int argc, char **argv) {
+int main() {
     // Set the attributes for server's queue.
     struct mq_attr srv_attr;
     srv_attr.mq_maxmsg = MAX_QUEUE_SIZE;
@@ -22,6 +21,25 @@ int main(int argc, char **argv) {
         &srv_attr)) == -1) {
         perror("[ERR] Srv queue creation");
         exit (-1);
+    }
+
+    // Starting concurrency stuff.
+    if (pthread_mutex_init(&index_l, NULL) != 0 ) {
+        perror("[ERR] Index lock.");
+        exit(-1);
+    }
+    if (pthread_mutex_init(&vector_l, NULL) != 0) {
+        perror("[ERR] Vector lock.");
+        exit(-1);
+    }
+
+    if (pthread_cond_init(&index_u, NULL) != 0) {
+        perror("[ERR] Index cond.");
+        exit(-1);
+    }
+    if (pthread_cond_init(&vector_u, NULL) != 0) {
+        perror("[ERR] Vector cond.");
+        exit(-1);
     }
 
     // Start listening.
@@ -98,26 +116,59 @@ void init_vector(msg_t *msg) {
     // Look for an empty entry in index and check if vector name already in
     // index.
     for (; i < NUM_VECTORS; ++i) {
+        pthread_mutex_lock(&index_l); // Lock to access shared structure.
+        while(index_c) { // If index consumers/producers working, wait.
+            pthread_cond_wait(&index_u, &index_l);
+        }
+        index_c = 1; // Indicate that we are working on shared structure.
+
         if(!vector_index[i])
             free_index = i;
         else if (!strcmp(vector_index[i], message.vector_name)) {
             name_in_use = 1;
             printf("[INIT] '%s' already in use.\n", message.vector_name);
         }
+
+        // Unlock and awake.
+        index_c = 0;
+        pthread_cond_broadcast(&index_u);
+        pthread_mutex_unlock(&index_l);
     }
 
     // Creation of index entry and vector.
     if (!name_in_use && free_index >= 0) {
         // Creating entry for the vector index.
+        pthread_mutex_lock(&index_l); // Lock to access shared structure.
+        while(index_c) { // If index consumers/producers working, wait.
+            pthread_cond_wait(&index_u, &index_l);
+        }
+        index_c = 1; // Indicate that we are working on shared structure.
+
         vector_index[free_index] = (char *) calloc(strlen(message.vector_name),
             sizeof(char));
         memcpy(vector_index[free_index], message.vector_name,
             strlen(message.vector_name));
 
+        // Unlock and awake.
+        index_c = 0;
+        pthread_cond_broadcast(&index_u);
+        pthread_mutex_unlock(&index_l);
+
         // Creating entry for the vector itself.
+        pthread_mutex_lock(&vector_l); // Lock to access shared structure.
+        while(vector_c) { // If index consumers/producers working, wait.
+            pthread_cond_wait(&vector_u, &vector_l);
+        }
+        vector_c = 1; // Indicate that we are working on shared structure.
+
         vector[free_index] = (int *) calloc((size_t) message.vector_value,
             sizeof(int));
         bzero(vector[free_index], (size_t) message.vector_value);
+
+        // Unlock and awake.
+        vector_c = 0;
+        pthread_cond_broadcast(&vector_u);
+        pthread_mutex_unlock(&vector_l);
 
         message.error = 0;
 
@@ -138,9 +189,22 @@ void set_vector(msg_t *msg) {
     int8_t index = -1;
 
     if ((index = find_index(message.vector_name)) >= 0) {
+        pthread_mutex_lock(&vector_l); // Lock to access shared structure.
+        while(vector_c) { // If index consumers/producers working, wait.
+            pthread_cond_wait(&vector_u, &vector_l);
+        }
+        vector_c = 1; // Indicate that we are working on shared structure.
+
         vector[index][message.index] = message.vector_value;
+
+        // Unlock and awake.
+        vector_c = 0;
+        pthread_cond_broadcast(&vector_u);
+        pthread_mutex_unlock(&vector_l);
+
         message.error = 0;
-        printf("[SET] %s[%d] <- %d.\n", message.vector_name, message.index, message.vector_value);
+        printf("[SET] %s[%d] <- %d.\n", message.vector_name, message.index,
+            message.vector_value);
     }
 
     send(&message);
@@ -156,9 +220,22 @@ void get_vector(msg_t *msg) {
     int8_t index = -1;
 
     if ((index = find_index(message.vector_name)) >= 0) {
+        pthread_mutex_lock(&vector_l); // Lock to access shared structure.
+        while(vector_c) { // If index consumers/producers working, wait.
+            pthread_cond_wait(&vector_u, &vector_l);
+        }
+        vector_c = 1; // Indicate that we are working on shared structure.
+
         message.vector_value = vector[index][message.index];
+
+        // Unlock and awake.
+        vector_c = 0;
+        pthread_cond_broadcast(&vector_u);
+        pthread_mutex_unlock(&vector_l);
+
         message.error = 0;
-        printf("[GET] %s[%d] -> %d.\n", message.vector_name, message.index, message.vector_value);
+        printf("[GET] %s[%d] -> %d.\n", message.vector_name, message.index,
+            message.vector_value);
     }
 
     send(&message);
@@ -176,6 +253,7 @@ void kill_vector(msg_t *msg) {
     if ((index = find_index(message.vector_name)) >= 0) {
         free(vector[index]);
         free(vector_index[index]);
+        vector_index[index] = NULL;
         message.error = 0;
 
         printf("[KILL] '%s' deleted.\n", message.vector_name);
@@ -192,9 +270,26 @@ void kill_vector(msg_t *msg) {
 int8_t find_index(char *name) {
     int8_t i = 0;
 
-    for (; i < NUM_VECTORS; ++i) if(vector_index[i])
-        if (!strcmp(vector_index[i], name))
+    for (; i < NUM_VECTORS; ++i) if(vector_index[i]) {
+        pthread_mutex_lock(&index_l); // Lock to access shared structure.
+        while(index_c) { // If index consumers/producers working, wait.
+            pthread_cond_wait(&index_u, &index_l);
+        }
+        index_c = 1; // Indicate that we are working on shared structure.
+        if (!strcmp(vector_index[i], name)) {
+            // Unlock and awake.
+            index_c = 0;
+            pthread_cond_broadcast(&index_u);
+            pthread_mutex_unlock(&index_l);
+
             return i;
+        }
+
+        // Unlock and awake.
+        index_c = 0;
+        pthread_cond_broadcast(&index_u);
+        pthread_mutex_unlock(&index_l);
+    }
 
     printf("[IDX] '%s' not found in the index.\n", name);
     return -1;
