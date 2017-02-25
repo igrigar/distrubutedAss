@@ -1,5 +1,3 @@
-CC = gcc
-
 # compiler flags using during compilation of source files.
 # C Language options:
 #     -std=c99: use the standard c99.
@@ -24,21 +22,25 @@ CC = gcc
 
 CFLAGS = -Wall -Wextra -Wuninitialized -Wfloat-equal -Wundef \
 	-Wpointer-arith -Wconversion -ggdb -O3
-	#-Werror 
+	#-Werror
 
-LDFLAGS = -L$(INSTALL_PATH)/lib/
-LDLIBS = -lpthread -lrt
+CC = gcc
+INCDIR = include
+LDFLAGS = -Llib/
+LDLIBS = -lpthread -lrt -larray
+
+.PHONY: all lib server client
 
 all: lib server client
 
 lib:
-	
+	$(CC) -I$(INCDIR) $(CFLAGS) -fpic -shared -o lib/libarray.so lib/array.c
 
 server:
-	$(CC) $(LDFLAGS) $(LDLIBS) $(CFLAGS) src/server.c -o server
+	$(CC) -I$(INCDIR) $(LDFLAGS) $(LDLIBS) $(CFLAGS) src/server.c -o server
 
 client:
-	$(CC) $(LDFLAGS)  $(LDLIBS) $(CFLAGS) src/client.c lib/array.c -o client
+	$(CC) -I$(INCDIR) $(LDFLAGS) $(LDLIBS) $(CFLAGS) src/client.c -o client
 
 clean:
-	rm server client
+	rm server client lib/libarray.so

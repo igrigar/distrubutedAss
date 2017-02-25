@@ -2,52 +2,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <pthread.h>
 #include <mqueue.h>
 
-/******************************************************************************
- *             Constant Stuff (May be inserted in a header file)              *
- ******************************************************************************/
-// Name of the queue for communicating with the server.
-const char rv_queue_name[16] = "/dist_vec_queue";
-
-// Queue descriptors.
-mqd_t server_queue = NULL;
-
-// Define the maximum lenght of a queue.
-const uint8_t MAX_QUEUE_SIZE = 15;
-
-// Services provided by the server.
-typedef enum {INIT, SET, GET, KILL} msg_code;
-
-// Struct that defines a message of the queue.
-typedef struct {
-    msg_code service; // Operation requested to the server.
-    char vector_name[16]; // Name of the vector we want to operate on.
-    char response_queue[16]; // Name of the queue server will use to reponse.
-    uint32_t index; // Index of the distributed vector.
-    int vector_value; // Value of the vector at 'index'.
-    int8_t error; // Check if the operations produce errors.
-} msg_t;
-
-// Distributed vector structures.
-const uint8_t NUM_VECTORS = 4;
-const uint8_t VECTOR_NAME_LENGTH = 16;
-
-// Index with the names of all the created vectors.
-char **vector_index;
-int **vector;
-
-// Function prototypes.
-void init_vector(msg_t *msg);
-void set_vector(msg_t *msg);
-void get_vector(msg_t *msg);
-void kill_vector(msg_t *msg);
-int8_t find_index(char *name);
-void send(msg_t *msg);
-
-/******************************************************************************
- *        End of Constant Stuff (May be inserted in a header file)            *
- ******************************************************************************/
+#include "server.h"
 
 int main(int argc, char **argv) {
     // Set the attributes for server's queue.
@@ -69,6 +27,7 @@ int main(int argc, char **argv) {
     // Start listening.
     while(1) {
         msg_t msg; // Received message.
+        pthread_t thread; // Thread to be launched.
 
         // Get the received message.
         if (mq_receive(server_queue, (char *) &msg, sizeof(msg_t), 0) == -1) {
@@ -78,11 +37,46 @@ int main(int argc, char **argv) {
 
         msg.error = -1; // We assume that the operation is wrong.
 
+        /*
+        // Sequential behavior.
         switch(msg.service) {
             case INIT: init_vector(&msg); break;
             case GET: get_vector(&msg); break;
             case SET: set_vector(&msg); break;
             case KILL: kill_vector(&msg); break;
+            default: break;
+        }*/
+
+        // Concurrent request handling.
+        switch(msg.service) {
+            case INIT:
+                if (pthread_create(&thread, NULL, (void *) init_vector, &msg)
+                    == -1)
+                    printf("Error al crear los threads\n");
+                else
+                    pthread_detach(thread);
+                break;
+            case GET:
+                if (pthread_create(&thread, NULL, (void *) get_vector, &msg)
+                    == -1)
+                    printf("Error al crear los threads\n");
+                else
+                    pthread_detach(thread);
+                break;
+            case SET:
+                if (pthread_create(&thread, NULL, (void *) set_vector, &msg)
+                    == -1)
+                    printf("Error al crear los threads\n");
+                else
+                    pthread_detach(thread);
+                break;
+            case KILL:
+                if (pthread_create(&thread, NULL, (void *) kill_vector, &msg)
+                    == -1)
+                    printf("Error al crear los threads\n");
+                else
+                    pthread_detach(thread);
+                break;
             default: break;
         }
     }
@@ -101,6 +95,8 @@ void init_vector(msg_t *msg) {
     int8_t name_in_use = 0; // Used to check repeated vector names.
     int8_t free_index = -1; // Used in the search of free indices.
 
+    // Look for an empty entry in index and check if vector name already in
+    // index.
     for (; i < NUM_VECTORS; ++i) {
         if(!vector_index[i])
             free_index = i;
@@ -110,20 +106,22 @@ void init_vector(msg_t *msg) {
         }
     }
 
+    // Creation of index entry and vector.
     if (!name_in_use && free_index >= 0) {
         // Creating entry for the vector index.
-        char *name = (char *) calloc(strlen(message.vector_name), sizeof(char));
-        memcpy(name, message.vector_name, strlen(message.vector_name));
-        vector_index[free_index] = name;
+        vector_index[free_index] = (char *) calloc(strlen(message.vector_name),
+            sizeof(char));
+        memcpy(vector_index[free_index], message.vector_name,
+            strlen(message.vector_name));
 
         // Creating entry for the vector itself.
-        int *vector_n = (int *) calloc((size_t) message.vector_value, sizeof(int));
-        bzero(vector_n, (size_t) message.vector_value);
-        vector[free_index] = vector_n;
+        vector[free_index] = (int *) calloc((size_t) message.vector_value,
+            sizeof(int));
+        bzero(vector[free_index], (size_t) message.vector_value);
 
         message.error = 0;
 
-        printf("[INIT] '%s' at %d\n", name, free_index);
+        printf("[INIT] '%s' at %d\n", message.vector_name, free_index);
     } else if (free_index == -1)
         printf("[INIT] Index full; '%s' dropped.\n", message.vector_name);
 

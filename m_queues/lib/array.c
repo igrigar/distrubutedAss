@@ -65,14 +65,14 @@ int init(char *name, int n) {
 
     // Sending the message.
     if (mq_send(server_queue, (const char *) &init_msg, sizeof(msg_t), 0) == -1) {
-        perror("[ERR] Init message");
+        perror("[ERR] Send INIT message.");
         return -1;
     } else if (mq_receive(client_queue, (char *) &init_response, sizeof(msg_t),
         0) == -1) {
-        perror("[ERR] Init message");
+        perror("[ERR] Receive INIT response.");
         return -1;
     } else if (init_response.error == -1) { // Receiving the response.
-        perror("[ERR] Vector creation");
+        perror("[ERR] INIT.");
         return -1;
     }
 
@@ -100,14 +100,14 @@ int set(char *name, int i, int value) {
 
     // Sending the message.
     if (mq_send(server_queue, (const char *) &set_msg, sizeof(msg_t), 0) == -1) {
-        perror("[ERR] Init message");
+        perror("[ERR] Send SET message.");
         return -1;
     } else if (mq_receive(client_queue, (char *) &set_response, sizeof(msg_t),
         0) == -1) {
-        perror("[ERR] Init message");
+        perror("[ERR] Receive SET response.");
         return -1;
     } else if (set_response.error == -1) { // Receiving the response.
-        perror("[ERR] Vector creation");
+        perror("[ERR] SET.");
         return -1;
     }
 
@@ -136,16 +136,18 @@ int get(char *name, int i, int *value) {
 
     // Sending the message.
     if (mq_send(server_queue, (const char *) &get_msg, sizeof(msg_t), 0) == -1) {
-        perror("[ERR] Init message");
+        perror("[ERR] Send GET message.");
         return -1;
     } else if (mq_receive(client_queue, (char *) &get_response, sizeof(msg_t),
         0) == -1) {
-        perror("[ERR] Init message");
+        perror("[ERR] Receive GET response.");
         return -1;
     } else if (get_response.error == -1) { // Receiving the response.
-        perror("[ERR] Vector creation");
+        perror("[ERR] GET.");
         return -1;
     }
+
+    *value = get_response.vector_value;
 
     return 0;
 }
@@ -169,14 +171,14 @@ int destroy(char *name) {
 
     // Sending the message.
     if (mq_send(server_queue, (const char *) &get_msg, sizeof(msg_t), 0) == -1) {
-        perror("[ERR] Init message");
+        perror("[ERR] Send KILL message.");
         return -1;
     } else if (mq_receive(client_queue, (char *) &get_response, sizeof(msg_t),
         0) == -1) {
-        perror("[ERR] Init message");
+        perror("[ERR] Receive KILL response.");
         return -1;
     } else if (get_response.error == -1) { // Receiving the response.
-        perror("[ERR] Vector creation");
+        perror("[ERR] KILL.");
         return -1;
     }
     return 0;

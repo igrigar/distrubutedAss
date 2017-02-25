@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "../lib/array.h"
+#include "array.h"
 
 int main(int argc, char **argv) {
 
@@ -10,11 +10,13 @@ int main(int argc, char **argv) {
 
     int size = 16; // Size of a new vector.
     int i; // Index of the loop.
+    int value;
 
     init("vector", size);
     for(i = 0; i < 32; ++i) {
         set("vector", i, i);
-        get("vector", i, &i);
+        get("vector", i, &value);
+        if (i != value) printf("ERROR GET\n");
         sleep(1);
     }
     destroy("vector");
