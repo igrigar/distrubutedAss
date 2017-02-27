@@ -5,6 +5,7 @@
 #include <mqueue.h>
 
 #include "array.h"
+#include "msg.h"
 
 // Queue descriptors.
 mqd_t server_queue = NULL;
@@ -22,7 +23,7 @@ char *cli_queue_name;
 int init(char *name, int n) {
     // We open the queue with the server if it didn't exist before.
     if (!server_queue)
-        if ((server_queue = mq_open("/dist_vec_queue", O_WRONLY)) == -1) {
+        if ((server_queue = mq_open(srv_queue_name, O_WRONLY)) == -1) {
             perror("[ERR] Open server queue");
             return -1;
         }
@@ -58,7 +59,7 @@ int init(char *name, int n) {
         memcpy(init_msg.vector_name, name, MAX_NAME_LENGTH - 1);
         printf("[WARNING] Vector name too long, truncating it.\n");
     }
-    memcpy(init_msg.reponse_queue, cli_queue_name, strlen(cli_queue_name));
+    memcpy(init_msg.response_queue, cli_queue_name, strlen(cli_queue_name));
     init_msg.index = 0;
     init_msg.vector_value = n;
     init_msg.error = 0;
@@ -93,7 +94,7 @@ int set(char *name, int i, int value) {
 
     set_msg.service = SET;
     memcpy(set_msg.vector_name, name, strlen(name));
-    memcpy(set_msg.reponse_queue, cli_queue_name, strlen(cli_queue_name));
+    memcpy(set_msg.response_queue, cli_queue_name, strlen(cli_queue_name));
     set_msg.index = (uint32_t) i;
     set_msg.vector_value = value;
     set_msg.error = 0;
@@ -129,7 +130,7 @@ int get(char *name, int i, int *value) {
 
     get_msg.service = GET;
     memcpy(get_msg.vector_name, name, strlen(name));
-    memcpy(get_msg.reponse_queue, cli_queue_name, strlen(cli_queue_name));
+    memcpy(get_msg.response_queue, cli_queue_name, strlen(cli_queue_name));
     get_msg.index = (uint32_t) i;
     get_msg.vector_value = 0;
     get_msg.error = 0;
@@ -164,7 +165,7 @@ int destroy(char *name) {
 
     get_msg.service = KILL;
     memcpy(get_msg.vector_name, name, strlen(name));
-    memcpy(get_msg.reponse_queue, cli_queue_name, strlen(cli_queue_name));
+    memcpy(get_msg.response_queue, cli_queue_name, strlen(cli_queue_name));
     get_msg.index = 0;
     get_msg.vector_value = 0;
     get_msg.error = 0;

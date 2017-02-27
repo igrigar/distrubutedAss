@@ -35,7 +35,6 @@ int main() {
         set("vector", i, i);
         get("vector", i, &value);
         if (i != value) printf("ERROR GET\n");
-        sleep(1);
     }
     destroy("vector");
 

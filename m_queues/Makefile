@@ -21,8 +21,7 @@
 #     -03: optimize yet more.
 
 CFLAGS = -Wall -Wextra -Wuninitialized -Wfloat-equal -Wundef \
-	-Wpointer-arith -Wconversion -ggdb -O3
-	#-Werror
+	-Wpointer-arith -Wconversion -ggdb -O3 -Werror
 
 CC = gcc
 INCDIR = include

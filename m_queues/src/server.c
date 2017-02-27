@@ -5,6 +5,7 @@
 #include <mqueue.h>
 
 #include "server.h"
+#include "msg.h"
 
 int main() {
     // Set the attributes for server's queue.
@@ -17,13 +18,13 @@ int main() {
     vector = (int **) malloc(NUM_VECTORS * sizeof(int *));
 
     // Create server's queue.
-    if ((server_queue = mq_open(rv_queue_name, O_CREAT|O_RDONLY, 0777,
+    if ((server_queue = mq_open(srv_queue_name, O_CREAT|O_RDONLY, 0777,
         &srv_attr)) == -1) {
         perror("[ERR] Srv queue creation");
         exit (-1);
     }
 
-    // Starting concurrency stuff.
+    // Initializing concurrency stuff.
     if (pthread_mutex_init(&index_l, NULL) != 0 ) {
         perror("[ERR] Index lock.");
         exit(-1);
@@ -54,16 +55,6 @@ int main() {
         }
 
         msg.error = -1; // We assume that the operation is wrong.
-
-        /*
-        // Sequential behavior.
-        switch(msg.service) {
-            case INIT: init_vector(&msg); break;
-            case GET: get_vector(&msg); break;
-            case SET: set_vector(&msg); break;
-            case KILL: kill_vector(&msg); break;
-            default: break;
-        }*/
 
         // Concurrent request handling.
         switch(msg.service) {
@@ -251,9 +242,33 @@ void kill_vector(msg_t *msg) {
     int8_t index = -1;
 
     if ((index = find_index(message.vector_name)) >= 0) {
+        pthread_mutex_lock(&vector_l); // Lock to access shared structure.
+        while(vector_c) { // If index consumers/producers working, wait.
+            pthread_cond_wait(&vector_u, &vector_l);
+        }
+        vector_c = 1; // Indicate that we are working on shared structure.
+
         free(vector[index]);
+
+        // Unlock and awake.
+        vector_c = 0;
+        pthread_cond_broadcast(&vector_u);
+        pthread_mutex_unlock(&vector_l);
+        pthread_mutex_lock(&index_l); // Lock to access shared structure.
+
+        while(index_c) { // If index consumers/producers working, wait.
+            pthread_cond_wait(&index_u, &index_l);
+        }
+        index_c = 1; // Indicate that we are working on shared structure.
+
         free(vector_index[index]);
         vector_index[index] = NULL;
+
+        // Unlock and awake.
+        index_c = 0;
+        pthread_cond_broadcast(&index_u);
+        pthread_mutex_unlock(&index_l);
+
         message.error = 0;
 
         printf("[KILL] '%s' deleted.\n", message.vector_name);
