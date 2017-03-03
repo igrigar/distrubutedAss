@@ -16,12 +16,13 @@ typedef struct {
     int *vector;
 } d_vec_t;
 
+
 /******************************************************************************
  *                              Global Definitions                            *
  ******************************************************************************/
 
 // Name of the queue for communicating with the server.
-//const char srv_queue_name[16] = "/dist_vec_queue";
+//const char rv_queue_name[16] = "/dist_vec_queue";
 
 // Queue descriptors.
 mqd_t server_queue = NULL;
@@ -46,7 +47,6 @@ uint8_t vector_c = 0;
 /******************************************************************************
  *                             Function Prototypes                            *
  ******************************************************************************/
-
 void init_vector(msg_t *msg);
 void set_vector(msg_t *msg);
 void get_vector(msg_t *msg);
