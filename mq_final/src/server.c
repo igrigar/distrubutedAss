@@ -97,8 +97,10 @@ int main() {
     }
 
     if (mq_close(server_q) == -1)
-        perror("[ERR] Close response queue.");
+        perror("[ERR] Close server queue.");
 
+    if (mq_unlink(srv_queue_name) == -1)
+        perror("[ERR] Unlink server queue.");
     return 0;
 }
 
