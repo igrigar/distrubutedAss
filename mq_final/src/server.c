@@ -109,6 +109,12 @@ int main() {
  */
 void init_vector(msg_t *msg) {
     msg_t m = *msg;
+    int32_t idx;
+
+    if (m.index == 0) { // It does not make sense to have size 0.
+        send(&m);
+        return;
+    }
 
     // Create the vector entry in case it can be inserted.
     vector_t n_vector;
@@ -116,16 +122,17 @@ void init_vector(msg_t *msg) {
     n_vector.size = m.index;
     n_vector.vector = (int *) malloc(m.index * sizeof(int));
 
-    v_list_lck(); // Lock the list.
-    if (v_list == NULL) { // List empty
-        v_list = (node_t *) malloc(sizeof(node_t));
+    v_list_lck(); // Lock the list. 
+    if (v_list == NULL) { // List empty v_list
+        v_list = (node_t *) malloc(sizeof(node_t)); 
         v_list->val = n_vector;
-        v_list->next = NULL;
-        m.error = 0; // Operation successfull.
-    } else if (find_name(v_list, m.vector_name) == -1) { // Name not used.
+        v_list->next = NULL; 
+        m.error = 1; // Operation successfull.  
+    } else if ((idx = find_name(v_list, m.vector_name)) == -1) {
         enqueue(v_list, n_vector);
-        m.error = 0; // Operation successfull.
-    }
+        m.error = 1; // Operation successfull.  
+    } else if (get_vector_size(v_list, (uint32_t) idx) == m.index)
+        m.error = 0; 
     v_list_ulck(); // Release the list.
 
     send(&m);
@@ -185,7 +192,7 @@ void kill_vector(msg_t *msg) {
     remove_node(&v_list, (uint32_t) idx);
     v_list_ulck();
 
-    m.error = 0;
+    if (idx >= 0) m.error = 1;
 
     send(&m);
 }

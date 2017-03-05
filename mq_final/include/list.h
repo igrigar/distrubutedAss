@@ -21,5 +21,6 @@ void remove_node(node_t **head, uint32_t idx);
 int32_t find_name(node_t *head, char *name);
 int8_t set_value(node_t *head, uint32_t idx, uint32_t v_idx, int val);
 int8_t get_value(node_t *head, uint32_t idx, uint32_t v_idx, int *val);
+uint32_t get_vector_size(node_t *head, uint32_t idx);
 
 #endif

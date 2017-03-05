@@ -8,11 +8,6 @@
 #include "array.h"
 #include "msg.h"
 
-#define RED "\033[22;31m"
-#define ORANGE "\033[01;31m"
-#define CYAN "\033[22;36m"
-#define RES "\033[0m"
-
 // Queue descriptors.
 mqd_t server_queue = NULL;
 mqd_t client_queue = NULL;
@@ -29,10 +24,8 @@ char *cli_queue_name;
 int init(char *name, int n) {
     // We open the queue with the server if it didn't exist before.
     if (!server_queue)
-        if ((server_queue = mq_open(srv_queue_name, O_WRONLY)) == -1) {
-            printf(RED "[ERR]" RES " Open server queue.\n");
+        if ((server_queue = mq_open(srv_queue_name, O_WRONLY)) == -1)
             return -1;
-        }
 
     // We create the client queue if it didn't exist before.
     if (!client_queue) {
@@ -47,10 +40,8 @@ int init(char *name, int n) {
         cli_attr.mq_maxmsg = MAX_QUEUE_SIZE;
         cli_attr.mq_msgsize = sizeof(msg_t);
         if ((client_queue = mq_open(cli_queue_name, O_CREAT|O_RDONLY, 0777,
-            &cli_attr)) == -1) {
-            printf(RED "[ERR]" RES " Open client queue.\n");
+            &cli_attr)) == -1)
             return -1;
-        }
     }
 
     // Composition of the message.
@@ -61,29 +52,27 @@ int init(char *name, int n) {
     // We need to check if the user input has a valid lenght.
     if (strlen(name) < MAX_NAME_LENGTH)
         memcpy(init_msg.vector_name, name, strlen(name));
-    else {
+    else
         memcpy(init_msg.vector_name, name, MAX_NAME_LENGTH - 1);
-        printf(ORANGE "[WARNING]" RES " Vector name too long, truncating it.\n");
-    }
+
     memcpy(init_msg.response_queue, cli_queue_name, strlen(cli_queue_name));
     init_msg.index = (uint32_t) n;
     init_msg.vector_value = 0;
     init_msg.error = 0;
 
     // Sending the message.
-    if (mq_send(server_queue, (const char *) &init_msg, sizeof(msg_t), 0) == -1) {
-        printf(RED "[ERR]" RES " Send INIT msg.\n");
+    if (mq_send(server_queue, (const char *) &init_msg, sizeof(msg_t), 0) == -1)
         return -1;
-    } else if (mq_receive(client_queue, (char *) &init_response, sizeof(msg_t),
-            0) == -1) {
-        printf(RED "[ERR]" RES " Receive INIT response.\n");
+    else if (mq_receive(client_queue, (char *) &init_response, sizeof(msg_t),
+            0) == -1)
         return -1;
-    } else if (init_response.error == -1) { // Receiving the response.
-        printf("[ERR] INIT \"%s\".\n", name);
+    
+    return init_response.error;
+/*
+    else if (init_response.error == -1) // Receiving the response.
         return -1;
-    }
 
-    return 0;
+    return 0;*/
 }
 
 /*
@@ -106,19 +95,18 @@ int set(char *name, int i, int value) {
     set_msg.error = 0;
 
     // Sending the message.
-    if (mq_send(server_queue, (const char *) &set_msg, sizeof(msg_t), 0) == -1) {
-        printf(RED "[ERR]" RES " Send SET message.\n");
+    if (mq_send(server_queue, (const char *) &set_msg, sizeof(msg_t), 0) == -1)
         return -1;
-    } else if (mq_receive(client_queue, (char *) &set_response, sizeof(msg_t),
-        0) == -1) {
-        printf(RED "[ERR]" RES " Receive SET response.\n");
+    else if (mq_receive(client_queue, (char *) &set_response, sizeof(msg_t),
+        0) == -1)
         return -1;
-    } else if (set_response.error == -1) { // Receiving the response.
-        printf(RED "[ERR]" RES " SET.\n");
-        return -1;
-    }
 
-    return 0;
+    return set_response.error;
+/*
+    else if (set_response.error == -1) // Receiving the response.
+        return -1;
+
+    return 0;*/
 }
 
 /*
@@ -142,21 +130,19 @@ int get(char *name, int i, int *value) {
     get_msg.error = 0;
 
     // Sending the message.
-    if (mq_send(server_queue, (const char *) &get_msg, sizeof(msg_t), 0) == -1) {
-        printf(RED "[ERR]" RES " Send GET message.\n");
+    if (mq_send(server_queue, (const char *) &get_msg, sizeof(msg_t), 0) == -1)
         return -1;
-    } else if (mq_receive(client_queue, (char *) &get_response, sizeof(msg_t),
-        0) == -1) {
-        printf(RED "[ERR]" RES " Receive GET response.\n");
+    else if (mq_receive(client_queue, (char *) &get_response, sizeof(msg_t),
+        0) == -1)
         return -1;
-    } else if (get_response.error == -1) { // Receiving the response.
-        printf(RED "[ERR]" RES " GET.\n");
-        return -1;
-    }
+
+   // else if (get_response.error == -1) // Receiving the response.
+   //     return -1;
 
     *value = get_response.vector_value;
 
-    return 0;
+    return get_response.error;
+    //return 0;
 }
 
 /*
@@ -166,27 +152,31 @@ int get(char *name, int i, int *value) {
  */
 int destroy(char *name) {
     // Composition of the message.
-    msg_t get_msg, get_response;
-    bzero((char *) &get_msg, sizeof(msg_t)); // Clean the set_msg.
+    msg_t destroy_msg, destroy_response;
+    bzero((char *) &destroy_msg, sizeof(msg_t)); // Clean the set_msg.
 
-    get_msg.service = KILL;
-    memcpy(get_msg.vector_name, name, strlen(name));
-    memcpy(get_msg.response_queue, cli_queue_name, strlen(cli_queue_name));
-    get_msg.index = 0;
-    get_msg.vector_value = 0;
-    get_msg.error = 0;
+    destroy_msg.service = KILL;
+    // We need to check if the user input has a valid lenght.
+    if (strlen(name) < MAX_NAME_LENGTH)
+        memcpy(destroy_msg.vector_name, name, strlen(name));
+    else
+        memcpy(destroy_msg.vector_name, name, MAX_NAME_LENGTH - 1);
+
+    memcpy(destroy_msg.response_queue, cli_queue_name, strlen(cli_queue_name));
+    destroy_msg.index = 0;
+    destroy_msg.vector_value = 0;
+    destroy_msg.error = 0;
 
     // Sending the message.
-    if (mq_send(server_queue, (const char *) &get_msg, sizeof(msg_t), 0) == -1) {
-        printf(RED "[ERR]" RES " Send KILL message.\n");
+    if (mq_send(server_queue, (const char *) &destroy_msg, sizeof(msg_t), 0) == -1)
         return -1;
-    } else if (mq_receive(client_queue, (char *) &get_response, sizeof(msg_t),
-        0) == -1) {
-        printf(RED "[ERR]" RES " Receive KILL response.\n");
+    else if (mq_receive(client_queue, (char *) &destroy_response,
+        sizeof(msg_t), 0) == -1)
         return -1;
-    } else if (get_response.error == -1) { // Receiving the response.
-        printf(RED "[ERR]" RES " KILL.\n");
+
+    return destroy_response.error;/*
+    else if (destroy_response.error == -1) // Receiving the response.
         return -1;
-    }
-    return 0;
+
+    return 0;*/
 }

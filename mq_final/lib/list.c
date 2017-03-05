@@ -59,7 +59,7 @@ int8_t set_value(node_t *head, uint32_t idx, uint32_t v_idx, int val) {
     uint32_t i;
 
     for (i = 0; i < idx; ++i)
-        if (current->next == NULL)
+        if (current == NULL)
             return -1;
         else
             current = current->next;
@@ -86,4 +86,17 @@ int8_t get_value(node_t *head, uint32_t idx, uint32_t v_idx, int *val) {
 
     *val = current->val.vector[v_idx];
     return 0;
+}
+
+uint32_t get_vector_size(node_t *head, uint32_t idx) {
+    node_t *current = head;
+    uint32_t i;
+
+    for (i = 0; i < idx; ++i)
+        if (current == NULL)
+            return 0; // There can't be 0 size vectors.
+        else
+            current = current->next;
+
+    return current->val.size;
 }
