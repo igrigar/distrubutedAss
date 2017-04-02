@@ -18,6 +18,8 @@ class client {
 
     private static String _server   = null;
     private static int _port = -1;
+    private static String _user = "";
+    private static Thread listener;
 
     /********************* METHODS ********************/
 
@@ -30,6 +32,10 @@ class client {
       */
     static RC register(String user) {
         String res = "2";
+
+        if (!_user.equals("")) return RC.ERROR;
+
+        _user = user;
         try {
             // Creation of the socket
             Socket sc = new Socket(_server, _port);
@@ -63,7 +69,8 @@ class client {
       */
     static RC unregister(String user) {
         String res = "2";
-
+        if (!user.equals(_user)) return RC.ERROR;
+        _user = "";
         try {
             // Creation of the socket
             Socket sc = new Socket(_server, _port);
@@ -99,6 +106,38 @@ class client {
     static RC connect(String user) {
         String res = "2";
 
+        if (!user.equals(_user)) return RC.ERROR;
+
+        final ServerSocket msg_sock;
+        final String usr = user;
+
+        try { // Creating the socket for message listener.
+            msg_sock = new ServerSocket(0);
+        } catch (IOException e) {
+            return RC.ERROR;
+        }
+
+        // Creating the listener.
+        listener = new Thread() {
+            @Override
+            public void run() {
+                ServerSocket socket = msg_sock;
+                while (!this.isInterrupted()) {
+                    try {
+                        Socket cli = socket.accept();
+                        BufferedReader in = new BufferedReader(
+                            new InputStreamReader(cli.getInputStream()));
+
+                        System.out.println("RCV: " + in.readLine());
+                    } catch (IOException e) {
+                        continue;
+                    }
+                }
+            }
+        };
+
+        int msg_port = msg_sock.getLocalPort();
+        System.out.println(msg_port);
         try {
             // Creation of the socket
             Socket sc = new Socket(_server, _port);
@@ -109,7 +148,7 @@ class client {
 
             out.write("CONNECT\n".getBytes());
             out.write((user + "\n").getBytes());
-            out.write("1000\n".getBytes());
+            out.write((String.valueOf(msg_port) + "\n").getBytes());
 
             res = in.readLine();
         } catch (Exception e) {
@@ -117,7 +156,7 @@ class client {
         }
 
         switch (Integer.parseInt(res)) {
-            case 0: System.out.println("CONNECT OK"); return RC.OK;
+            case 0: System.out.println("CONNECT OK"); listener.start(); return RC.OK;
             case 1: System.out.println("CONNECT FAIL, USER DOES NOT EXIST"); return RC.USER_ERROR;
             case 2: System.out.println("USER ALREADY CONNECTED"); return RC.ERROR;
             case 3: System.out.println("CONNECT FAIL"); return RC.ERROR;
@@ -134,7 +173,7 @@ class client {
       */
     static RC disconnect(String user) {
         String res = "2";
-
+        if (!user.equals(_user)) return RC.ERROR;
         try {
             // Creation of the socket
             Socket sc = new Socket(_server, _port);
@@ -150,6 +189,8 @@ class client {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+        listener.interrupt();
 
         switch (Integer.parseInt(res)) {
             case 0: System.out.println("DISCONNECT OK"); return RC.OK;
@@ -170,7 +211,28 @@ class client {
       * @return ERROR the user does not exist or another error occurred
       */
     static RC send(String user, String message) {
-        // Write your code here
+        String res = "2";
+        if (_user.equals("")) return RC.ERROR;
+        try {
+            // Creation of the socket
+            Socket sc = new Socket(_server, _port);
+
+            OutputStream out = sc.getOutputStream();
+            BufferedReader in = new BufferedReader(new InputStreamReader(
+                sc.getInputStream()));
+
+            out.write("SEND\n".getBytes());
+            out.write((_user + "\n").getBytes());
+            out.write((user + "\n").getBytes());
+            out.write((message + "\n").getBytes());
+
+            res = in.readLine();
+            System.out.println(res);
+            //if (res.equals("0"))
+            //    System.out.println(in.readLine());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         return RC.ERROR;
     }
 
