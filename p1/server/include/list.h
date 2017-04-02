@@ -4,7 +4,8 @@
 #include <stdint.h>
 #include <netinet/in.h>
 
-typedef enum {ONLINE, OFFLINE} status_t;
+typedef enum status {ONLINE, OFFLINE} status_t;
+
 // Node of message list.
 typedef struct  msg {
     char message[256]; // Message itself.

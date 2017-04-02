@@ -143,11 +143,11 @@ uint8_t usr_exists(node_t *head, char *name) {
     node_t *current = head;
 
     while (strcmp(current->usr, name) != 0) // Looking for the name.
-        if (current->next == NULL) return '2'; // User not found.
+        if (current->next == NULL) return 2; // User not found.
         else current = current->next;
 
-    if (current->status == ONLINE) return '0'; // User online.
-    else return '1'; // User offline.
+    if (current->status == ONLINE) return 0; // User online.
+    else return 1; // User offline.
 }
 
 /*
@@ -219,30 +219,16 @@ void add_msg(node_t *head, char *sender, char *receiver, char *message, uint32_t
 
     if (current->msg_list == NULL) { // No head in the message list.
         current->msg_list = (msg_t *) malloc(sizeof(msg_t));
+
+        // Clean string fields.
+        bzero(current->msg_list->message, strlen(current->msg_list->message));
+        bzero(current->msg_list->from, strlen(current->msg_list->from));
+
         memcpy(current->msg_list->message, message, strlen(message));
         memcpy(current->msg_list->from, sender, strlen(sender));
         current->msg_list->seq = seq;
         current->msg_list->next = NULL;
     } else append_msg(current->msg_list, sender, message, seq);
-    /*{ // Append to the message list.
-        printf("1\n");
-        msg_t *msg = current->msg_list;
-        printf("2\n");
-        while (msg->next != NULL)
-            printf(".\n");
-            msg = msg->next;
-        printf("3\n");
-
-        msg->next = (msg_t *) malloc(sizeof(msg_t));
-        printf("4\n");
-        memcpy(msg->next->message, message, strlen(message));
-        printf("5\n");
-        memcpy(msg->next->from, name, strlen(name));
-        printf("6\n");
-        msg->seq = seq;
-        printf("7\n");
-        msg->next->next = NULL;
-    }*/
 }
 
 void append_msg (msg_t *head, char *sender, char *message, uint32_t seq) {

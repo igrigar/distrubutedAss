@@ -31,11 +31,11 @@ class client {
       * @return ERROR if another error occurred
       */
     static RC register(String user) {
-        String res = "2";
+        int response = -1;
 
-        if (!_user.equals("")) return RC.ERROR;
+        if (!_user.equals("")) return RC.ERROR; // User already initialized.
+        _user = user; // Init user.
 
-        _user = user;
         try {
             // Creation of the socket
             Socket sc = new Socket(_server, _port);
@@ -47,12 +47,12 @@ class client {
             out.write("REGISTER\n".getBytes());
             out.write((user + "\n").getBytes());
 
-            res = in.readLine();
+            response = in.read();
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-        switch (Integer.parseInt(res)) {
+        switch (response) {
             case 0: System.out.println("REGISTER OK"); return RC.OK;
             case 1: System.out.println("USERNAME IN USE"); return RC.USER_ERROR;
             case 2: System.out.println("REGISTER FAIL"); return RC.ERROR;
@@ -68,9 +68,11 @@ class client {
       * @return ERROR if another error occurred
       */
     static RC unregister(String user) {
-        String res = "2";
+        int response = -1;
+
         if (!user.equals(_user)) return RC.ERROR;
         _user = "";
+
         try {
             // Creation of the socket
             Socket sc = new Socket(_server, _port);
@@ -82,12 +84,12 @@ class client {
             out.write("UNREGISTER\n".getBytes());
             out.write((user + "\n").getBytes());
 
-            res = in.readLine();
+            response = in.read();
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-        switch (Integer.parseInt(res)) {
+        switch (response) {
             case 0: System.out.println("UNREGISTER OK"); return RC.OK;
             case 1: System.out.println("USER DOES NOT EXIST"); return RC.USER_ERROR;
             case 2: System.out.println("UNREGISTER FAIL"); return RC.ERROR;
@@ -104,7 +106,7 @@ class client {
       * @return ERROR if another error occurred
       */
     static RC connect(String user) {
-        String res = "2";
+        int response = -1;
 
         if (!user.equals(_user)) return RC.ERROR;
 
@@ -122,13 +124,22 @@ class client {
             @Override
             public void run() {
                 ServerSocket socket = msg_sock;
-                while (!this.isInterrupted()) {
+                while (!Thread.currentThread().isInterrupted()) {
                     try {
                         Socket cli = socket.accept();
                         BufferedReader in = new BufferedReader(
                             new InputStreamReader(cli.getInputStream()));
 
-                        System.out.println("RCV: " + in.readLine());
+                        String input = in.readLine();
+
+                        if (input.equals("SEND_MESSAGE")) {
+                            String from = in.readLine();
+                            String id = in.readLine();
+                            String msg = in.readLine();
+
+                            System.out.println("Message: " + id + " FROM: " + from);
+                            System.out.println("\t" + msg + "\n\tEND");
+                        } else System.out.println(input);
                     } catch (IOException e) {
                         continue;
                     }
@@ -137,7 +148,6 @@ class client {
         };
 
         int msg_port = msg_sock.getLocalPort();
-        System.out.println(msg_port);
         try {
             // Creation of the socket
             Socket sc = new Socket(_server, _port);
@@ -150,12 +160,12 @@ class client {
             out.write((user + "\n").getBytes());
             out.write((String.valueOf(msg_port) + "\n").getBytes());
 
-            res = in.readLine();
+            response = in.read();
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-        switch (Integer.parseInt(res)) {
+        switch (response) {
             case 0: System.out.println("CONNECT OK"); listener.start(); return RC.OK;
             case 1: System.out.println("CONNECT FAIL, USER DOES NOT EXIST"); return RC.USER_ERROR;
             case 2: System.out.println("USER ALREADY CONNECTED"); return RC.ERROR;
@@ -172,7 +182,8 @@ class client {
       * @return ERROR if another error occurred
       */
     static RC disconnect(String user) {
-        String res = "2";
+        int response = -1;
+
         if (!user.equals(_user)) return RC.ERROR;
         try {
             // Creation of the socket
@@ -185,14 +196,14 @@ class client {
             out.write("DISCONNECT\n".getBytes());
             out.write((user + "\n").getBytes());
 
-            res = in.readLine();
+            response = in.read();
         } catch (Exception e) {
             e.printStackTrace();
         }
 
         listener.interrupt();
 
-        switch (Integer.parseInt(res)) {
+        switch (response) {
             case 0: System.out.println("DISCONNECT OK"); return RC.OK;
             case 1: System.out.println("DICSONNECT FAIL / USER DOES NOT EXIST"); return RC.USER_ERROR;
             case 2: System.out.println("DISCONNECT FAIL / USER NOT CONNECTED"); return RC.ERROR;
@@ -211,8 +222,11 @@ class client {
       * @return ERROR the user does not exist or another error occurred
       */
     static RC send(String user, String message) {
-        String res = "2";
+        int response = -1;
+        String seq = "";
+
         if (_user.equals("")) return RC.ERROR;
+
         try {
             // Creation of the socket
             Socket sc = new Socket(_server, _port);
@@ -226,14 +240,24 @@ class client {
             out.write((user + "\n").getBytes());
             out.write((message + "\n").getBytes());
 
-            res = in.readLine();
-            System.out.println(res);
-            //if (res.equals("0"))
-            //    System.out.println(in.readLine());
+            response = in.read();
+            if (response == 0) seq = in.readLine();
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return RC.ERROR;
+
+        switch (response) {
+            case 0:
+                System.out.println("SEND OK - MESSAGE " + seq);
+                return RC.OK;
+            case 1:
+                System.out.println("SEND FAIL / USER DOES NOT EXIST");
+                return RC.ERROR;
+            case 2:
+                System.out.println("SEND FAIL");
+                return RC.ERROR;
+            default: return RC.ERROR;
+        }
     }
 
     /**
