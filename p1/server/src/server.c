@@ -181,6 +181,7 @@ void user_register(int socket) {
     else printf("REGISTER %s FAIL.\n", buffer);
 
     write_line(socket, &response, 1);
+    close(socket);
 }
 
 /*
@@ -209,6 +210,7 @@ void user_connect(int socket, struct in_addr cli_addr) {
     } else printf("CONNECT %s FAIL.\n", buffer);
 
     write_line(socket, &response, 1);
+    close(socket);
 }
 
 /*
@@ -232,6 +234,7 @@ void user_disconnect(int socket) {
     else printf("DISCONNECT %s FAIL.\n", buffer);
 
     write_line(socket, &response, 1);
+    close(socket);
 }
 
 /*
@@ -255,6 +258,7 @@ void user_unregister(int socket) {
     else printf("UNREGISTER %s FAIL.\n", buffer);
 
     write_line(socket, &response, 1);
+    close(socket);
 }
 
 /*
@@ -310,6 +314,8 @@ void rcv_message(int socket) {
     }
 
     if (response == 0) flush_msg_list(receiver); // If user connected send msg.
+
+    close(socket);
 }
 
 void flush_msg_list(char *name) {
@@ -317,10 +323,7 @@ void flush_msg_list(char *name) {
     msg_t *msg = pop_msg(usr_list, name);
     char *init = "SEND_MESSAGE";
 
-    printf("Flushing Message list\n");
     while (msg != NULL) {
-        printf("%s\n", msg->message);
-
         int sock;
         struct sockaddr_in serv_addr;
         char sequence[10];
@@ -336,7 +339,7 @@ void flush_msg_list(char *name) {
             printf("Client unreachable\n");
             flush_msg_list(name); // try again.
         }
-        sprintf(sequence, "%d", msg->seq);
+        sprintf(sequence, "0%d", msg->seq);
 
         write_line(sock, init, strlen(init));
         write_line(sock, msg->from, strlen(msg->from));
@@ -346,34 +349,6 @@ void flush_msg_list(char *name) {
 
         msg = pop_msg(usr_list, name);
     }
-/*
-    while (msg != NULL) {
-        printf("1");
-        int sock;
-        struct sockaddr_in serv_addr;
-        char sequence[10];
-
-        sock = socket(AF_INET, SOCK_STREAM, 0);
-        bzero((char *) &serv_addr, sizeof(serv_addr));
-
-        serv_addr.sin_family = AF_INET;
-        memcpy((char *) &user->ip, (char *) &serv_addr.sin_addr, sizeof(struct in_addr));
-        serv_addr.sin_port = htons(user->port);
-
-        if (connect(sock, (struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) {
-            printf("Client unreachable\n");
-            flush_msg_list(name); // try again.
-        }
-        sprintf(sequence, "%d", msg->seq);
-
-        write_line(sock, init, strlen(init));
-        write_line(sock, msg->from, strlen(msg->from));
-        write_line(sock, sequence, strlen(sequence));
-        write_line(sock, msg->message, strlen(msg->message));
-
-        msg = pop_msg(usr_list, name);
-    }
-*/
 }
 
 /*
@@ -389,13 +364,14 @@ ssize_t write_line(int fd, void *buffer, size_t n) {
     int last_write = 0;
     size_t length = n;
     char *buff;
+    char nl = '\n';
 
     if (!buffer) {
         errno = EINVAL;
         return -1;
     }
 
-    buff = buffer;
+    buff = (char *) buffer;
 
     while (length > 0 && last_write >= 0) {
         last_write = write(fd, buff, length);
@@ -403,10 +379,8 @@ ssize_t write_line(int fd, void *buffer, size_t n) {
         buff += last_write;
     }
 
-    if (strlen(buffer) > 1) { // More than a byte.
-        write (fd, (char *) '\n', 1);
-        printf("NEW LINE\n");
-    }
+   if (n > 1) write(fd, &nl, 1);
+
     if (last_write < 0) return -1; // Error.
     else return 0; // Write done.
 }
@@ -433,6 +407,7 @@ ssize_t read_line(int fd, void *buffer, int n) {
     }
 
     buff = buffer;
+    bzero(buff, strlen(buff));
 
     // We try to fill the buffer until (n - 1) to add in the end '\0'.
     for (total_read = 0; total_read < (n - 1); ++total_read) {
