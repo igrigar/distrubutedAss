@@ -23,13 +23,13 @@ typedef struct {
 
 node_t *usr_list = NULL; // List of users.
 
-const uint16_t BUFFER_SIZE = 256; // Maximum buffer size.
+const uint8_t PORT_SIZE = 8; // Maximum length of a port number.
+
 int _port;
 int _socket;
 int _cli_size;
 
 struct sockaddr_in srv_addr;
-
 
 pthread_mutex_t user_list_lck;
 pthread_cond_t user_list_ulck;
@@ -41,10 +41,6 @@ uint32_t user_list_worker = 0;
  ******************************************************************************/
 
 void session_handler(void *args);
-void user_register(int socket);
-void user_unregister(int socket);
-void user_connect(int socket, struct in_addr cli_addr);
-void user_disconnect(int socket);
 void rcv_message(int socket);
 void flush_msg_list(char *name);
 uint8_t check_port(char *port);
@@ -59,6 +55,7 @@ void u_list_ulck();
  ******************************************************************************/
 
 int main(int argc, char **argv) {
+    setbuf(stdout, NULL);
 
     // Check args.
     if (argc != 3 || strcmp(argv[1], "-p") || !check_port(argv[2])) {
@@ -127,138 +124,126 @@ int main(int argc, char **argv) {
 /*
  * @Brief: handle a session in the server.
  *
- * @param *fd: file descriptor of the writeback socket.
+ * @param args: poniter to a void representation of arg_t structure.
  */
 void session_handler(void *args) {
-    arg_t *arg = (arg_t *) args;
-    int socket = arg->fd;
-    char buffer[BUFFER_SIZE];
+    /* Needed vars. */
+    arg_t *client_data = (arg_t *) args; // Casting of arguments.
+    int socket = client_data->fd; // Socket file descriptor.
+    struct in_addr ip = client_data->cli_addr; // Client IP address.
 
-    // Regular operations.
-    read_line(socket, buffer, BUFFER_SIZE); // Getting the Operation Request.
+    char op[BUFFER_SIZE], sender[BUFFER_SIZE], port[PORT_SIZE]; // Needed buffers.
+    uint8_t response; // Response byte
+
+    node_t *user; // User struct, in case it's needed to be modified.
+
+    /* Clean buffers */
+    bzero(op, BUFFER_SIZE);
+    bzero(sender, BUFFER_SIZE);
+    bzero(port, PORT_SIZE);
+
+    if (read_line(socket, op, BUFFER_SIZE) == -1) { // Requested operation.
+        response = 2; // Error.
+        bzero(op, BUFFER_SIZE); // Clean buffer.
+    }
 
     // We handle the request.
-    if (!strcmp(buffer, "REGISTER")) user_register(socket);
-    else if (!strcmp(buffer, "UNREGISTER")) user_unregister(socket);
-    else if (!strcmp(buffer, "CONNECT")) user_connect(socket, arg->cli_addr);
-    else if (!strcmp(buffer, "DISCONNECT")) user_disconnect(socket);
-    else if (!strcmp(buffer, "SEND")) rcv_message(socket);
-    else printf("COMMAND UNKNOWN.\n");
+    if (!strcmp(op, "REGISTER")) {
+        u_list_lck();
+        if (read_line(socket, sender, BUFFER_SIZE) == -1) {
+            response = 2;
+        } else {
+            if (usr_list == NULL) {
+                usr_list = (node_t *) malloc(sizeof(node_t)); // Allocate memory.
 
-    close(socket);
-}
+                strcpy(usr_list->usr, sender); // Copy user name.
+                usr_list->status = OFFLINE; // Not connected, by default.
+                usr_list->seq = 1; // Sequence number to 1.
+                usr_list->port = 0; // Empty port.
+                usr_list->ip.s_addr = 0; // Empty IP address.
+                usr_list->msg_list = NULL; // Empty message list.
 
-/*
- * @Brief: add a user to the list of registered users.
- *
- * @Param socket: file descriptor of the socket where the connection is created.
- */
-void user_register(int socket) {
-    char buffer[BUFFER_SIZE];
-    uint8_t response;
+                usr_list->next = NULL;
+                usr_list->prev = NULL;
 
-    read_line(socket, buffer, BUFFER_SIZE); // Read the username.
-
-    u_list_lck();
-    if (!usr_list) { // List is empty.
-        usr_list = (node_t *) malloc(sizeof(node_t));
-        memcpy(usr_list->usr, buffer, strlen(buffer));
-        usr_list->status = OFFLINE;
-        usr_list->seq = 1;
-        usr_list->port = 0;
-        usr_list->ip.s_addr = 0;
-        usr_list->msg_list = NULL;
-
-        usr_list->next = NULL;
-        usr_list->prev = NULL;
-
-        response = 0;
-    } else response = add_usr(usr_list, buffer);
-    u_list_ulck();
-
-    // Print returns.
-    if (response == 0) printf("REGISTER %s OK.\n", buffer);
-    else printf("REGISTER %s FAIL.\n", buffer);
-
-    write_line(socket, &response, 1);
-    close(socket);
-}
-
-/*
- * @Brief: set the status of a user to connected. It also sets the IP and port
- *  of client's listener.
- *
- * @Param socket: file descriptor of the socket where the connection is created.
- * @Param cli_addr: IP address of client's listener.
- */
-void user_connect(int socket, struct in_addr cli_addr) {
-    char buffer[BUFFER_SIZE], port[8];
-    uint8_t response;
-
-    read_line(socket, buffer, BUFFER_SIZE); // Read the username.
-    read_line(socket, port, 8); // Read the port.
-
-    u_list_lck();
-    if (!usr_list) response = 2; // List not initialized, so user not in sys.
-    else response = conn_usr(usr_list, buffer, cli_addr, atoi(port));
-    u_list_ulck();
-
-    // Print returns.
-    if (response == 0) {
-        printf("CONNECT %s OK.\n", buffer);
-        flush_msg_list(buffer); // Send the pendant messages.
-    } else printf("CONNECT %s FAIL.\n", buffer);
-
-    write_line(socket, &response, 1);
-    close(socket);
-}
-
-/*
- * @Brief: set the status of a user to disconnected.
- *
- * @Param socket: file descriptor of the socket where the connection is created.
- */
-void user_disconnect(int socket) {
-    char buffer[BUFFER_SIZE];
-    uint8_t response;
-
-    read_line(socket, buffer, BUFFER_SIZE); // Read the username.
-
-    u_list_lck();
-    if (!usr_list) response = 2; // List not initialized, so user not in sys.
-    else response = disconn_usr(usr_list, buffer);
-    u_list_ulck();
+                usr_list->busy = 0;
+                if (pthread_mutex_init(&usr_list->lock, NULL) != 0 ||
+                            pthread_cond_init(&usr_list->unlock, NULL) != 0) {
+                    free(usr_list);
+                    response = 2;
+                } else response = 0;
+            } else response = add_usr(usr_list, sender); // Append new user to list.
+        }
+        u_list_ulck();
+    } else if (!strcmp(op, "UNREGISTER")) {
+        u_list_lck();
+        if (read_line(socket, sender, BUFFER_SIZE) == -1) {
+            response = 2;
+        } else {
+            if (usr_list == NULL) response = 1; // No user in the system.
+            else response = rm_usr(&usr_list, sender);
+        }
+        u_list_ulck();
+    } else if (!strcmp(op, "CONNECT")) {
+        u_list_lck();
+        // Checking possible errors.
+        if (read_line(socket, sender, BUFFER_SIZE) == -1) {
+            response = 2;
+        } else if (read_line(socket, port, PORT_SIZE) == -1) {
+            response = 2;
+        } else if (!check_port(port)) {
+            response = 2;
+        } else { // No errors found so far.
+            if (usr_list == NULL) response = 1; // No user in the system.
+            else {
+                user = get_user(usr_list, sender);
+                if (user == NULL) response = 1;
+                else if (user->status == ONLINE) response = 2;
+                else { // Setting the data.
+                    user->status = ONLINE;
+                    user->port = atoi(port);
+                    user->ip = ip;
+                    response = 0;
+                }
+            }
+        }
+        u_list_ulck();
+    } else if (!strcmp(op, "DISCONNECT")) {
+        u_list_lck();
+        if (read_line(socket, sender, BUFFER_SIZE) == -1) {
+            response = 2;
+        } else {
+            if (usr_list == NULL) response = 1; // No user in the system.
+            else {
+                user = get_user(usr_list, sender);
+                if (user == NULL) response = 1;
+                else if (user->status == OFFLINE) response = 2;
+                else if (user->ip.s_addr != ip.s_addr) response = 2;
+                else { // Setting the data.
+                    user->status = OFFLINE;
+                    user->port = 0;
+                    user->ip.s_addr = 0;
+                    response = 0;
+                }
+            }
+        }
+        u_list_ulck();
+    } else if (!strcmp(op, "SEND")) {
+        rcv_message(socket);
+    }
 
     // Print returns.
-    if (response == 0) printf("DISCONNECT %s OK.\n", buffer);
-    else printf("DISCONNECT %s FAIL.\n", buffer);
+    if (strcmp(op, "SEND")) {
+        if (response == 0) printf("%s %s OK.\n", op, sender);
+        else printf("%s %s FAIL.\n", op, sender);
+    }
 
     write_line(socket, &response, 1);
+
     close(socket);
-}
 
-/*
- * @Brief: remove a user from the list of registered users.
- *
- * @Param socket: file descriptor of the socket where the connection is created.
- */
-void user_unregister(int socket) {
-    char buffer[BUFFER_SIZE];
-    uint8_t response;
-
-    read_line(socket, buffer, BUFFER_SIZE); // Read the username.
-
-    u_list_lck();
-    if (!usr_list) response = 2; // List not initialized, so user not in sys.
-    else response = rm_usr(&usr_list, buffer);
-    u_list_ulck();
-
-    // Print returns.
-    if (response == 0) printf("UNREGISTER %s OK.\n", buffer);
-    else printf("UNREGISTER %s FAIL.\n", buffer);
-
-    write_line(socket, &response, 1);
-    close(socket);
+    // If new connection, flush msg list.
+    if (response == 0 && !strcmp(op, "CONNECT")) flush_msg_list(sender);
 }
 
 /*
@@ -269,86 +254,139 @@ void user_unregister(int socket) {
 void rcv_message(int socket) {
     char sender[BUFFER_SIZE], receiver[BUFFER_SIZE], msg[BUFFER_SIZE];
     uint8_t response;
+    node_t *user_s, *user_r;
+
+    // Wipe buffers.
+    bzero(sender, BUFFER_SIZE);
+    bzero(receiver, BUFFER_SIZE);
+    bzero(msg, BUFFER_SIZE);
 
     // Receive all the data.
-    read_line(socket, sender, BUFFER_SIZE); // Read the username.
-    read_line(socket, receiver, BUFFER_SIZE); // Read the username.
-    read_line(socket, msg, BUFFER_SIZE); // Read the message.
+    if (read_line(socket, sender, BUFFER_SIZE) == -1) response = 2; // Read the username.
+    else if (read_line(socket, receiver, BUFFER_SIZE) == -1) response = 2; // Read the username.
+    else if (read_line(socket, msg, BUFFER_SIZE) == -1) response = 2; // Read the message.
+    else {
+        // Get the users if exist.
+        u_list_lck();
+        user_s = get_user(usr_list, sender);
+        user_r = get_user(usr_list, receiver);
+        u_list_ulck();
 
-    // Check Sender.
-    u_list_lck();
-    if (!usr_list) response =  2; // List not initialized, so user not in sys.
-    else response = usr_exists(usr_list, sender);
-    u_list_ulck();
+        if (user_s == NULL || user_r == NULL) response = 1;
+        else if (user_s->status == OFFLINE) response = 2;
+        else response = 0;
 
-    if (response != 0) { // Sender not in system or not connected.
-        printf("ERROR Sender: %d\n", response);
-        write_line(socket, &response, 1);
-        return;
-    }
+        if (response != 0) { // Receiver not in the system.
+            write_line(socket, &response, 1);
+        } else { // Enqueue the message to receiver msg_list.
+            char seq[BUFFER_SIZE];
 
-    // Check receiver.
-    u_list_lck();
-    if (!usr_list) response =  2; // List not initialized, so user not in sys.
-    else response = usr_exists(usr_list, receiver);
-    u_list_ulck();
+            if (user_s->seq == 0) { // Something went wrong.
+                response = 2;
+                write_line(socket, &response, 1);
+                return;
+            }
+            sprintf(seq, "%d", user_s->seq);
 
-    if (response == 2) { // Receiver not in the system.
-        printf("Error Receiver\n");
-        write_line(socket, &response, 1);
-        return;
-    } else { // Enqueue the message to receiver msg_list.
-        char seq[BUFFER_SIZE], ret = 0;
-        uint32_t sequence = get_seq_num(usr_list, sender);
+            pthread_mutex_lock(&user_r->lock);
+            while (user_r->busy) pthread_cond_wait(&user_r->unlock, &user_r->lock);
+            ++user_r->busy;
 
-        if (sequence == 0) {
-            return; // Something went wrong.
+            add_msg(usr_list, sender, receiver, msg, user_s->seq++);
+
+            --user_r->busy;
+            pthread_cond_broadcast(&user_r->unlock);
+            pthread_mutex_unlock(&user_r->lock);
+
+            write_line(socket, &response, 1);
+            write_line(socket, seq, strlen(seq));
         }
-        update_seq_num(usr_list, sender);
 
-        add_msg(usr_list, sender, receiver, msg, sequence);
-        write_line(socket, &ret, 1);
+        if (user_r->status == ONLINE) flush_msg_list(receiver); // If user connected send msg.
+        else {
+            int s = user_s->seq;
+            printf("MESSAGE %d FROM %s TO %s STORED\n", --s, sender, receiver);
+        }
 
-        sprintf(seq, "%d", sequence);
-        write_line(socket, seq, strlen(seq));
+        return;
     }
 
-    if (response == 0) flush_msg_list(receiver); // If user connected send msg.
-
-    close(socket);
+    write_line(socket, &response, 1);
 }
 
+/*
+ * @Brief: send all the messages to a user.
+ *
+ * @Param name: name of the user who is going to receive the messages.
+ */
 void flush_msg_list(char *name) {
     node_t *user = get_user(usr_list, name);
     msg_t *msg = pop_msg(usr_list, name);
-    char *init = "SEND_MESSAGE";
+
+
+    pthread_mutex_lock(&user->lock);
+    while (user->busy) pthread_cond_wait(&user->unlock, &user->lock);
+    ++user->busy;
 
     while (msg != NULL) {
         int sock;
         struct sockaddr_in serv_addr;
-        char sequence[10];
+        char sequence[BUFFER_SIZE], sender[BUFFER_SIZE];
 
-        sock = socket(AF_INET, SOCK_STREAM, 0);
+        sprintf(sequence, "0%d", msg->seq);
+        strcpy(sender, msg->from);
+
+
         bzero((char *) &serv_addr, sizeof(serv_addr));
 
+        sock = socket(AF_INET, SOCK_STREAM, 0);
         serv_addr.sin_family = AF_INET;
         memcpy((char *) &user->ip, (char *) &serv_addr.sin_addr, sizeof(struct in_addr));
         serv_addr.sin_port = htons(user->port);
 
-        if (connect(sock, (struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) {
-            printf("Client unreachable\n");
-            flush_msg_list(name); // try again.
-        }
-        sprintf(sequence, "0%d", msg->seq);
+        // Connection error. Disconnect user.
+        if (connect(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
+            close(sock);
 
-        write_line(sock, init, strlen(init));
-        write_line(sock, msg->from, strlen(msg->from));
-        write_line(sock, sequence, strlen(sequence));
-        write_line(sock, msg->message, strlen(msg->message));
+            // Disconnect user.
+            user->status = OFFLINE;
+            user->port = 0;
+            user->ip.s_addr = 0;
+
+            --user->busy;
+            pthread_cond_broadcast(&user->unlock);
+            pthread_mutex_unlock(&user->lock);
+        }
+
+        if (!strcmp(sender, "SEND_MESS_ACK")) {
+            char *init = "SEND_MESS_ACK";
+            write_line(sock, init, strlen(init));
+            write_line(sock, sequence, strlen(sequence));
+        } else {
+            char *init = "SEND_MESSAGE";
+
+            write_line(sock, init, strlen(init));
+            write_line(sock, sender, strlen(sender));
+            write_line(sock, sequence, strlen(sequence));
+            write_line(sock, msg->message, strlen(msg->message));
+            printf("SEND MESSAGE %s FROM %s TO %s\n", sequence, sender, name);
+
+            add_msg(usr_list, "SEND_MESS_ACK", sender, "SEND_MESS_ACK", msg->seq);
+
+            node_t *user_s = get_user(usr_list, sender);
+            if (user_s != NULL && user_s->status == ONLINE) // Send the message ACK.
+                    flush_msg_list(sender);
+            }
+        }
+
         close(sock);
 
         msg = pop_msg(usr_list, name);
     }
+
+    --user->busy;
+    pthread_cond_broadcast(&user->unlock);
+    pthread_mutex_unlock(&user->lock);
 }
 
 /*
@@ -364,7 +402,7 @@ ssize_t write_line(int fd, void *buffer, size_t n) {
     int last_write = 0;
     size_t length = n;
     char *buff;
-    char nl = '\n';
+    char nl = '\0';
 
     if (!buffer) {
         errno = EINVAL;
@@ -375,7 +413,7 @@ ssize_t write_line(int fd, void *buffer, size_t n) {
 
     while (length > 0 && last_write >= 0) {
         last_write = write(fd, buff, length);
-        length -= last_write;
+        length -= (size_t ) last_write;
         buff += last_write;
     }
 
@@ -435,6 +473,7 @@ ssize_t read_line(int fd, void *buffer, int n) {
  * @Return: 0 if it is not a valid port, 1 otherwise.
  */
 uint8_t check_port(char *port) {
+    if (strlen(port) > PORT_SIZE) return 0;
     while (*port)
         if (!isdigit(*port++)) return 0;
     // Make the < 2^16 thing here.

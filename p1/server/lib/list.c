@@ -1,8 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include <stdio.h>
-
 #include "list.h"
 
 /*
@@ -12,7 +10,8 @@
  * @Param name: name of the user we are looking for.
  *
  * @Return 0: if everything goes well.
- * @Return 1: if the user does not exist.
+ * @Return 1: if the user already exist.
+ * @Return 2: error creating the node.
  */
 uint8_t add_usr(node_t *head, char *name) {
     node_t *current = head;
@@ -25,7 +24,8 @@ uint8_t add_usr(node_t *head, char *name) {
 
     // User was not in the list, so we create it.
     current->next = (node_t *) malloc(sizeof(node_t)); // Allocate memory.
-    memcpy(current->next->usr, name, strlen(name));
+
+    strcpy(current->next->usr, name);
     current->next->status = OFFLINE;
     current->next->seq = 1;
     current->next->port = 0;
@@ -33,6 +33,13 @@ uint8_t add_usr(node_t *head, char *name) {
     current->next->msg_list = NULL;
     current->next->next = NULL;
     current->next->prev = current;
+
+    current->next->busy = 0;
+    if (pthread_mutex_init(&current->next->lock, NULL) != 0 ||
+            pthread_cond_init(&current->next->unlock, NULL) != 0) {
+        free(current->next);
+        return 2;
+    }
 
     return 0;
 }
@@ -72,120 +79,6 @@ uint8_t rm_usr(node_t **head, char *name) {
 }
 
 /*
- * @Brief: connect a user to the system. This means modify it's status and
- *  setting up it's IP address and port.
- *
- * @Param head: head node of the list.
- * @Param name: name of the user we are looking for.
- * @Param in_addr: IP addres of client's message listener.
- * @Param port: port of client's message listener.
- *
- * @Return 0: if everything goes well.
- * @Return 1: if the user does not exist.
- * @Return 2: if the user was already online.
- */
-uint8_t conn_usr(node_t *head, char *name, struct in_addr ip, int port) {
-    node_t *current = head;
-
-    while (strcmp(current->usr, name) != 0) // Looking for the name.
-        if (current->next == NULL) return 1; // User not found.
-        else current = current->next;
-
-    if (current->status == ONLINE)
-        return 1;
-
-    current->status = ONLINE;
-    current->port = port;
-    current->ip = ip;
-
-    return 0;
-}
-
-/*
- * @Brief: disconnect a user from the system. This means to modify it's
- *  status and "wiping" IP address and port.
- *
- * @Param head: head node of the list.
- * @Param name: name of the user we are looking for.
- *
- * @Return 0: if everything goes well.
- * @Return 1: if the user does not exist.
- * @Return 2: if the user was already offline.
- */
-uint8_t disconn_usr(node_t *head, char *name) {
-    node_t *current = head;
-
-    while (strcmp(current->usr, name) != 0) // Looking for the name.
-        if (current->next == NULL) return 1; // User not found.
-        else current = current->next;
-
-    if (current->status == OFFLINE)
-        return 2;
-
-    current->status = OFFLINE;
-    current->port = 0;
-    current->ip.s_addr = 0;
-
-    return 0;
-}
-
-/*
- * @Brief: looks for a user inside the list, it also checks if it is connected.
- *
- * @Param head: head node of the list.
- * @Param name: name of the user we are looking for.
- *
- * @Return 0: when user is found and it is connected.
- * @Return 1: when user is found and is not connected.
- * @Return 2: when not found.
- */
-uint8_t usr_exists(node_t *head, char *name) {
-    node_t *current = head;
-
-    while (strcmp(current->usr, name) != 0) // Looking for the name.
-        if (current->next == NULL) return 2; // User not found.
-        else current = current->next;
-
-    if (current->status == ONLINE) return 0; // User online.
-    else return 1; // User offline.
-}
-
-/*
- * @Brief: return the sequence number that identifies a message sent by an user.
- *
- * @Param head: head node of the list.
- * @Param name: name of the user we are looking for.
- *
- * @Return 0: user does not exist. (Because this value is imposible as seq num)
- * @Return x!=0: sequence number.
- */
-uint32_t get_seq_num(node_t *head, char *name) {
-    node_t *current = head;
-
-    while (strcmp(current->usr, name) != 0) // Looking for the name.
-        if (current->next == NULL) return 0; // User not found.
-        else current = current->next;
-
-    return current->seq;
-}
-
-/*
- * @Brief: increase the sequence number of messages for a user.
- *
- * @Param head: head node of the list.
- * @Param name: name of the user we are looking for.
- */
-void update_seq_num(node_t *head, char *name) {
-    node_t *current = head;
-
-    while (strcmp(current->usr, name) != 0) // Looking for the name.
-        if (current->next == NULL) return; // User not found.
-        else current = current->next;
-
-    if (++current->seq == 0) current->seq = 1; // Overflow, so set to 1.
-}
-
-/*
  * @Brief: obtain a user from the list.
  *
  * @Param *head: pointer to the head of the list of users.
@@ -207,8 +100,10 @@ node_t * get_user(node_t *head, char *name) {
  * @Brief: add a message to the list of messages.
  *
  * @Param *head: pointer to the head of the list of users.
- * @Param *msg: message to be stored.
- * @Param *name: name of the user who sent the message
+ * @Param *message: message to be stored.
+ * @Param *sender: name of the user who sent the message.
+ * @Param *receiver: name of the user who receives the message.
+ * @Param seq: sequence number associated to the message.
  */
 void add_msg(node_t *head, char *sender, char *receiver, char *message, uint32_t seq) {
     node_t *current = head;
@@ -221,24 +116,58 @@ void add_msg(node_t *head, char *sender, char *receiver, char *message, uint32_t
         current->msg_list = (msg_t *) malloc(sizeof(msg_t));
 
         // Clean string fields.
-        bzero(current->msg_list->message, strlen(current->msg_list->message));
-        bzero(current->msg_list->from, strlen(current->msg_list->from));
+        bzero(current->msg_list->message, 256);
+        bzero(current->msg_list->from, 256);
 
-        memcpy(current->msg_list->message, message, strlen(message));
-        memcpy(current->msg_list->from, sender, strlen(sender));
+        //memcpy(current->msg_list->message, message, strlen(message));
+        //memcpy(current->msg_list->from, sender, strlen(sender));
+        strcpy(current->msg_list->message, message);
+        strcpy(current->msg_list->from, sender);
+
         current->msg_list->seq = seq;
         current->msg_list->next = NULL;
     } else append_msg(current->msg_list, sender, message, seq);
 }
 
+/*
+ * @Brief: add a message to the list of messages.
+ *
+ * @Param *head: pointer to the head of the list of users.
+ * @Param *message: message to be stored.
+ * @Param *sender: name of the user who sent the message.
+ * @Param *receiver: name of the user who receives the message.
+ * @Param seq: sequence number associated to the message.
+ */
 void append_msg (msg_t *head, char *sender, char *message, uint32_t seq) {
     msg_t *current = head;
+
+    if (head == NULL) { // Head node.
+        head = (msg_t *) malloc(sizeof(msg_t));
+
+        // Wipe fields.
+        bzero(head->message, BUFFER_SIZE);
+        bzero(head->from, BUFFER_SIZE);
+
+        strcpy(head->message, message);
+        strcpy(head->from, sender);
+
+        head->seq = seq;
+        head->next = NULL;
+
+        return;
+    }
 
     while (current->next != NULL) current = current->next; // Traverse the list.
 
     current->next = (msg_t *) malloc(sizeof(msg_t));
-    memcpy(current->next->message, message, strlen(message));
-    memcpy(current->next->from, sender, strlen(sender));
+
+    // Clean fields
+    bzero(current->next->message, BUFFER_SIZE);
+    bzero(current->next->from, BUFFER_SIZE);
+
+    strcpy(current->next->message, message);
+    strcpy(current->next->from, sender);
+
     current->next->seq = seq;
     current->next->next = NULL;
 }

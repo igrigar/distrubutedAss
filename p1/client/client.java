@@ -33,9 +33,6 @@ class client {
     static RC register(String user) {
         int response = -1;
 
-        if (!_user.equals("")) return RC.ERROR; // User already initialized.
-        _user = user; // Init user.
-
         try {
             // Creation of the socket
             Socket sc = new Socket(_server, _port);
@@ -44,8 +41,8 @@ class client {
             BufferedReader in = new BufferedReader(new InputStreamReader(
                 sc.getInputStream()));
 
-            out.write("REGISTER\n".getBytes());
-            out.write((user + "\n").getBytes());
+            out.write("REGISTER\0".getBytes());
+            out.write((user + "\0").getBytes());
 
             response = in.read();
         } catch (Exception e) {
@@ -70,9 +67,6 @@ class client {
     static RC unregister(String user) {
         int response = -1;
 
-        if (!user.equals(_user)) return RC.ERROR;
-        _user = "";
-
         try {
             // Creation of the socket
             Socket sc = new Socket(_server, _port);
@@ -81,8 +75,8 @@ class client {
             BufferedReader in = new BufferedReader(new InputStreamReader(
                 sc.getInputStream()));
 
-            out.write("UNREGISTER\n".getBytes());
-            out.write((user + "\n").getBytes());
+            out.write("UNREGISTER\0".getBytes());
+            out.write((user + "\0").getBytes());
 
             response = in.read();
         } catch (Exception e) {
@@ -108,7 +102,10 @@ class client {
     static RC connect(String user) {
         int response = -1;
 
-        if (!user.equals(_user)) return RC.ERROR;
+        if (!_user.equals("")) {
+            System.out.println("ERROR, CONNECTED AS " + _user);
+            return RC.USER_ERROR;
+        }
 
         final ServerSocket msg_sock;
         final String usr = user;
@@ -127,20 +124,46 @@ class client {
                 while (!Thread.currentThread().isInterrupted()) {
                     try {
                         Socket cli = socket.accept();
-                        BufferedReader in = new BufferedReader(
-                            new InputStreamReader(cli.getInputStream()));
+                        //BufferedReader in = new BufferedReader(
+                        //    new InputStreamReader(cli.getInputStream()));
 
-                        String input = in.readLine();
+                        DataInputStream in = new DataInputStream(cli.getInputStream());
+
+                        //String input = in.readLine();
+                        String input = "";
+                        int b = in.read();
+                        while (b != 0) {
+                            input += (char) b;
+                            b = in.read();
+                        }
 
                         if (input.equals("SEND_MESSAGE")) {
-                            String from = in.readLine();
-                            String id = in.readLine();
-                            String msg = in.readLine();
+                            String from = "";
+                            String id = "";
+                            String msg = "";
+
+                            b = in.read();
+                            while (b != 0) {from += (char) b; b = in.read();}
+
+                            b = in.read();
+                            while (b != 0) {id += (char) b; b = in.read();}
+
+                            b = in.read();
+                            while (b != 0) {msg += (char) b;b = in.read();}
 
                             System.out.println("Message: " + id + " FROM: " + from);
-                            System.out.println("\t" + msg + "\n\tEND");
+                            System.out.print("  " + msg + "\n  END\nc> ");
+                        } else if (input.equals("SEND_MESS_ACK")) {
+                            String id = "";
+
+                            b = in.read();
+                            while (b != 0) {id += (char) b;b = in.read();}
+
+                            System.out.print("SEND MESSAGE " + id + " OK\nc> ");
                         } else System.out.println(input);
                     } catch (IOException e) {
+                        continue;
+                    } catch (Exception e) {
                         continue;
                     }
                 }
@@ -156,9 +179,9 @@ class client {
             BufferedReader in = new BufferedReader(new InputStreamReader(
                 sc.getInputStream()));
 
-            out.write("CONNECT\n".getBytes());
-            out.write((user + "\n").getBytes());
-            out.write((String.valueOf(msg_port) + "\n").getBytes());
+            out.write("CONNECT\0".getBytes());
+            out.write((user + "\0").getBytes());
+            out.write((String.valueOf(msg_port) + "\0").getBytes());
 
             response = in.read();
         } catch (Exception e) {
@@ -166,7 +189,11 @@ class client {
         }
 
         switch (response) {
-            case 0: System.out.println("CONNECT OK"); listener.start(); return RC.OK;
+            case 0:
+                System.out.println("CONNECT OK");
+                _user = user;
+                listener.start();
+                return RC.OK;
             case 1: System.out.println("CONNECT FAIL, USER DOES NOT EXIST"); return RC.USER_ERROR;
             case 2: System.out.println("USER ALREADY CONNECTED"); return RC.ERROR;
             case 3: System.out.println("CONNECT FAIL"); return RC.ERROR;
@@ -184,7 +211,11 @@ class client {
     static RC disconnect(String user) {
         int response = -1;
 
-        if (!user.equals(_user)) return RC.ERROR;
+        if (!user.equals(_user)) {
+            System.out.println("ERROR, CONNECTED AS " + _user); 
+            return RC.ERROR;
+        }
+
         try {
             // Creation of the socket
             Socket sc = new Socket(_server, _port);
@@ -193,8 +224,8 @@ class client {
             BufferedReader in = new BufferedReader(new InputStreamReader(
                 sc.getInputStream()));
 
-            out.write("DISCONNECT\n".getBytes());
-            out.write((user + "\n").getBytes());
+            out.write("DISCONNECT\0".getBytes());
+            out.write((user + "\0").getBytes());
 
             response = in.read();
         } catch (Exception e) {
@@ -204,7 +235,7 @@ class client {
         listener.interrupt();
 
         switch (response) {
-            case 0: System.out.println("DISCONNECT OK"); return RC.OK;
+            case 0: System.out.println("DISCONNECT OK"); _user = ""; return RC.OK;
             case 1: System.out.println("DICSONNECT FAIL / USER DOES NOT EXIST"); return RC.USER_ERROR;
             case 2: System.out.println("DISCONNECT FAIL / USER NOT CONNECTED"); return RC.ERROR;
             case 3: System.out.println("DISCONNECT FAIL");
@@ -225,7 +256,10 @@ class client {
         int response = -1;
         String seq = "";
 
-        if (_user.equals("")) return RC.ERROR;
+        if (_user.equals("")) {
+            System.out.println("ERROR, NOT CONNECTED");
+            return RC.ERROR;
+        }
 
         try {
             // Creation of the socket
@@ -235,10 +269,10 @@ class client {
             BufferedReader in = new BufferedReader(new InputStreamReader(
                 sc.getInputStream()));
 
-            out.write("SEND\n".getBytes());
-            out.write((_user + "\n").getBytes());
-            out.write((user + "\n").getBytes());
-            out.write((message + "\n").getBytes());
+            out.write("SEND\0".getBytes());
+            out.write((_user + "\0").getBytes());
+            out.write((user + "\0").getBytes());
+            out.write((message + "\0").getBytes());
 
             response = in.read();
             if (response == 0) seq = in.readLine();
@@ -368,10 +402,10 @@ class client {
                     _port = Integer.parseInt(arg);
                     break;
                 case '?':
-                    System.out.print("getopt() returned " + c + "\n");
+                    System.out.print("getopt() returned " + c + "\0");
                     break; // getopt() already printed an error
                 default:
-                    System.out.print("getopt() returned " + c + "\n");
+                    System.out.print("getopt() returned " + c + "\0");
                 }
         }
 
