@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <errno.h>
 #include <ctype.h>
 #include <pthread.h>
@@ -92,6 +93,8 @@ int main(int argc, char **argv) {
         perror("User list cond");
         exit(-1);
     }
+
+    printf("s> init server %s:%d\ns> ", inet_ntoa(srv_addr.sin_addr), _port);
 
     while (1) {
         int client_socket;
@@ -230,12 +233,12 @@ void session_handler(void *args) {
         u_list_ulck();
     } else if (!strcmp(op, "SEND")) {
         rcv_message(socket);
-    }
+    } else response = 2;
 
     // Print returns.
     if (strcmp(op, "SEND")) {
-        if (response == 0) printf("%s %s OK.\n", op, sender);
-        else printf("%s %s FAIL.\n", op, sender);
+        if (response == 0) printf("%s %s OK.\ns> ", op, sender);
+        else printf("%s %s FAIL.\ns> ", op, sender);
     }
 
     write_line(socket, &response, 1);
@@ -305,7 +308,7 @@ void rcv_message(int socket) {
         if (user_r->status == ONLINE) flush_msg_list(receiver); // If user connected send msg.
         else {
             int s = user_s->seq;
-            printf("MESSAGE %d FROM %s TO %s STORED\n", --s, sender, receiver);
+            printf("MESSAGE %d FROM %s TO %s STORED\ns> ", --s, sender, receiver);
         }
 
         return;
@@ -369,16 +372,14 @@ void flush_msg_list(char *name) {
             write_line(sock, sender, strlen(sender));
             write_line(sock, sequence, strlen(sequence));
             write_line(sock, msg->message, strlen(msg->message));
-            printf("SEND MESSAGE %s FROM %s TO %s\n", sequence, sender, name);
+            printf("SEND MESSAGE %s FROM %s TO %s\ns> ", sequence, sender, name);
 
             add_msg(usr_list, "SEND_MESS_ACK", sender, "SEND_MESS_ACK", msg->seq);
 
             node_t *user_s = get_user(usr_list, sender);
             if (user_s != NULL && user_s->status == ONLINE) // Send the message ACK.
                     flush_msg_list(sender);
-            }
         }
-
         close(sock);
 
         msg = pop_msg(usr_list, name);
