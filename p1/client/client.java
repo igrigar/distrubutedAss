@@ -3,6 +3,8 @@ import java.lang.*;
 import java.net.*;
 import java.util.*;
 import gnu.getopt.Getopt;
+import client.Md5Service;
+import client.Md5ServiceService;
 
 
 class client {
@@ -265,6 +267,17 @@ class client {
         }
 
         try {
+						// Web Service.
+						Md5ServiceService service = new Md5ServiceService();
+						Md5Service port = service.getMd5ServicePort();
+
+						String md5 = port.md5(message);
+						System.out.println(md5);
+						if (md5.equals("")) {
+							System.out.println("ERROR , SEND FAIL/ERROR IN MD5\nc> ");
+							return RC.ERROR;
+						}
+					
             // Creation of the socket
             Socket sc = new Socket(_server, _port);
 
@@ -276,6 +289,7 @@ class client {
             out.write((_user + "\0").getBytes());
             out.write((user + "\0").getBytes());
             out.write((message + "\0").getBytes());
+						out.write((md5 + "\0").getBytes());
 
             response = in.read();
             if (response == 0) seq = in.readLine();
