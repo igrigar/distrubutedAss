@@ -11,6 +11,7 @@
 #include <pthread.h>
 
 #include "list.h"
+#include "storage.h"
 
 /******************************************************************************
  *                              GLOBAL VARIABLES                              *
@@ -29,6 +30,8 @@ const uint8_t PORT_SIZE = 8; // Maximum length of a port number.
 int _port;
 int _socket;
 int _cli_size;
+
+char *rpc_address;
 
 struct sockaddr_in srv_addr;
 
@@ -59,11 +62,13 @@ int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
     // Check args.
-    if (argc != 3 || strcmp(argv[1], "-p") || !check_port(argv[2])) {
-        printf("Usage: ./server -p <port>\n");
+    if (argc != 5 || strcmp(argv[1], "-p") || !check_port(argv[2]) || strcmp(argv[3], "-s")) {
+        printf("Usage: ./server -p <port> -s <RPC srv>\n");
         exit(-1);
     }
 
+    rpc_address = malloc(strlen(argv[4]));
+    strcpy(rpc_address, argv[4]);
 
     _port = atoi(argv[2]);
     _socket = socket(AF_INET, SOCK_STREAM, 0); // AF_INET = IPv4
@@ -93,6 +98,23 @@ int main(int argc, char **argv) {
         perror("User list cond");
         exit(-1);
     }
+
+    // Initialize rpc service.
+    CLIENT *rpc;
+    rpc = clnt_create(rpc_address, MSG_STORE, MSG_STORE_V, "TCP");
+    if (rpc == NULL) {
+        clnt_pcreateerror("Error rpc binding");
+        exit(-1);
+    }
+
+    int res;
+    init_1(&res, rpc);
+    if (res == -1) {
+        perror("Init rpc");
+        exit(-1);
+    }
+
+    clnt_destroy(rpc);
 
     printf("s> init server %s:%d\ns> ", inet_ntoa(srv_addr.sin_addr), _port);
 
@@ -245,6 +267,8 @@ void session_handler(void *args) {
 
     close(socket);
 
+    // debug(usr_list);
+
     // If new connection, flush msg list.
     if (response == 0 && !strcmp(op, "CONNECT")) flush_msg_list(sender);
 }
@@ -281,6 +305,7 @@ void rcv_message(int socket) {
 
         if (response != 0) { // Receiver not in the system.
             write_line(socket, &response, 1);
+            return;
         } else { // Enqueue the message to receiver msg_list.
             char seq[BUFFER_SIZE];
 
@@ -303,6 +328,21 @@ void rcv_message(int socket) {
 
             write_line(socket, &response, 1);
             write_line(socket, seq, strlen(seq));
+
+            // Call rpc to store the message.
+            CLIENT *rpc;
+            rpc = clnt_create(rpc_address, MSG_STORE, MSG_STORE_V, "TCP");
+            if (rpc == NULL) {
+                clnt_pcreateerror("Error rpc binding");
+            } else {
+                int res;
+                insert_1(user_s->usr, user_r->usr, seq, msg, "CHKSM", &res, rpc);
+                if (res == -1) {
+                    perror("Init rpc");
+                }
+
+                clnt_destroy(rpc);
+            }
         }
 
         if (user_r->status == ONLINE) flush_msg_list(receiver); // If user connected send msg.
@@ -310,7 +350,6 @@ void rcv_message(int socket) {
             int s = user_s->seq;
             printf("MESSAGE %d FROM %s TO %s STORED\ns> ", --s, sender, receiver);
         }
-
         return;
     }
 

@@ -96,6 +96,20 @@ node_t * get_user(node_t *head, char *name) {
     return current;
 }
 
+#include <stdio.h>
+void debug(node_t *head) {
+    node_t *current = head;
+
+    while (current) {
+        printf("Name: %s\n", current->usr);
+        if (current->status == ONLINE) printf("Status: Online\n");
+        else printf("Status: Offline\n");
+        printf("+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n");
+
+        current = current->next;
+    }
+}
+
 /*
  * @Brief: add a message to the list of messages.
  *

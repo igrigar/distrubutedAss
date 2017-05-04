@@ -46,4 +46,5 @@ void add_msg(node_t *head, char *sender, char *receiver, char *message, uint32_t
 void append_msg (msg_t *head, char *sender, char *message, uint32_t seq);
 msg_t * pop_msg(node_t *head, char *name);
 
+void debug(node_t *head);
 #endif

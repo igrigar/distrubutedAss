@@ -20,12 +20,14 @@
 # Optimization:
 #     -03: optimize yet more.
 
-CFLAGS = -Wall -Wextra -Wuninitialized -Wfloat-equal -Wundef \
-	-Wpointer-arith -Wunused -Wconversion -ggdb -O3
+#CFLAGS = -Wall -Wextra -Wuninitialized -Wfloat-equal -Wundef \
+#	-Wpointer-arith -Wunused -Wconversion -ggdb -O3
 #-Werror
 
+CFLAGS = -ggdb
+
 CC = gcc
-INCDIR = include
+INCDIR = -Iinclude -Irpc
 LDFLAGS = -Llib/
 LDLIBS = -lpthread -llist
 
@@ -34,10 +36,10 @@ LDLIBS = -lpthread -llist
 all: lib server
 
 lib:
-	$(CC) -I$(INCDIR) $(CFLAGS) -fpic -shared -o lib/liblist.so lib/list.c
+	$(CC) $(INCDIR) $(CFLAGS) -fpic -shared -o lib/liblist.so lib/list.c
 
 server:
-	$(CC) -I$(INCDIR) $(LDFLAGS) $(LDLIBS) $(CFLAGS) -o server src/server.c 
-
+	$(CC) $(INCDIR) $(LDFLAGS) $(LDLIBS) $(CFLAGS) -o server src/server.c rpc/storage_clnt.c rpc/storage_xdr.c
+	#$(CC) -o server server.o rpc/*.o
 clean:
 	rm server lib/liblist.so

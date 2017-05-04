@@ -214,6 +214,9 @@ class client {
         if (!user.equals(_user)) {
             System.out.println("ERROR, CONNECTED AS " + _user); 
             return RC.ERROR;
+        } else if (_user.equals("")) {
+            System.out.println("ERROR, NO USER CONNECTED."); 
+            return RC.ERROR;
         }
 
         try {
