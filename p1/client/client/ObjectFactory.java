@@ -36,11 +36,11 @@ public class ObjectFactory {
     }
 
     /**
-     * Create an instance of {@link Md5 }
+     * Create an instance of {@link Exception }
      * 
      */
-    public Md5 createMd5() {
-        return new Md5();
+    public Exception createException() {
+        return new Exception();
     }
 
     /**
@@ -52,11 +52,11 @@ public class ObjectFactory {
     }
 
     /**
-     * Create an instance of {@link Exception }
+     * Create an instance of {@link Md5 }
      * 
      */
-    public Exception createException() {
-        return new Exception();
+    public Md5 createMd5() {
+        return new Md5();
     }
 
     /**

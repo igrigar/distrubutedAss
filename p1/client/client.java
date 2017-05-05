@@ -268,7 +268,7 @@ class client {
 
         try {
 						// Web Service.
-						Md5ServiceService service = new Md5ServiceService();
+						Md5ServiceService service = new Md5ServiceService(new URL("http://localhost:8888/rs?wsdl"));
 						Md5Service port = service.getMd5ServicePort();
 
 						String md5 = port.md5(message);
