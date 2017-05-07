@@ -18,16 +18,18 @@ int main (int argc, char *argv[]) {
 	rpc = clnt_create(rpc_address, MSG_STORE, MSG_STORE_V, "TCP");
 
 	if (rpc == NULL) {
-		printf("ERROR , SERVICE NOT AVAILABLE");
+		printf("ERROR , SERVICE NOT AVAILABLE\n");
 		exit(-1);
 	}
 
 	query_msg result;
+        result.msg = malloc(256);
+        result.md5 = malloc(32);
 	enum clnt_stat retval;
 	retval = query_1(argv[1], argv[2], &result, rpc);
 
 	if(!strcmp(result.msg, "")) {
-		printf("ERROR , MESSAGE  DOES  NOT  EXIST");
+		printf("ERROR , MESSAGE  DOES  NOT  EXIST\n");
 		exit(0);
 	}
 

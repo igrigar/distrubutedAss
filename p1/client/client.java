@@ -1,8 +1,8 @@
 import java.io.*;
 import java.net.*;
 import gnu.getopt.Getopt;
-//import client.Md5Service;
-//import client.Md5ServiceService;
+import webservice.Md5Service;
+import webservice.Md5ServiceService;
 
 
 class client {
@@ -272,7 +272,8 @@ class client {
         try {
 /*
             // Web Service.
-            Md5ServiceService service = new Md5ServiceService(new URL("http://localhost:8888/rs?wsdl"));
+            Md5ServiceService service = new Md5ServiceService();
+            //Md5ServiceService service = new Md5ServiceService(new URL("http://localhost:8888/rs?wsdl"));
             Md5Service port = service.getMd5ServicePort();
 
             md5 = port.md5(message);

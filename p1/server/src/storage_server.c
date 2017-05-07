@@ -15,53 +15,10 @@ init_1_svc(int *result, struct svc_req *rqstp)
 {
 	bool_t retval;
 
-	char *command1[4] = {"mkdir", "-p", "database", NULL};
-	char *command2[4] = {"rm", "-rf", "database/*", NULL};
-
-	int ret = 0;
-	pid_t rm_proc = fork();
-
-	// Creating if needed the directory.
-	switch (rm_proc) {
-		case 0: // Child
-			if (execvp(command1[0], command1) == -1) {
-				ret = -1;
-				perror("Error execvp");
-			}
-			break;
-		case -1: // Error
-			ret = -1;
-			perror("Error in fork");
-			break;
-		default: // Parent
-			if (wait(0) == -1) {
-				perror("Error child process");
-				ret = -1;
-			}
-	}
-
-	rm_proc = fork();
-	// Removing all the stuff in the database.
-	switch (rm_proc) {
-		case 0: // Child
-			if (execvp(command2[0], command2) == -1) {
-				ret = -1;
-				perror("Error execvp");
-			}
-			break;
-		case -1: // Error
-			ret = -1;
-			perror("Error in fork");
-			break;
-		default: // Parent
-			if (wait(0) == -1) {
-				perror("Error child process");
-				ret = -1;
-			}
-	}
+        *result = system("exec mkdir -p database"); 
+        if (*result != -1) *result = system("exec rm -r database/*");
 
 	retval = TRUE;
-	*result = ret;
 
 	return retval;
 }
@@ -107,10 +64,10 @@ bool_t
 msg_n_1_svc(char *sender, int *result,  struct svc_req *rqstp)
 {
 	bool_t retval;
-	int fd, last_read, lines = 0, name_size = strlen("database/") + strlen(user);
-	char buffer = 32;
+	int fd, last_read, lines = 0, name_size = strlen("database/") + strlen(sender);
+	char buffer = 32, file_name[name_size];
 
-	sprintf(file_name, "database/%s", user);
+	sprintf(file_name, "database/%s", sender);
 
 	if ((fd = open(file_name, O_RDONLY)) == -1) return FALSE;
 
@@ -130,29 +87,32 @@ query_1_svc(char *user, char *id, query_msg *result,  struct svc_req *rqstp)
 {
 	bool_t retval;
 
-	int fd, readed, attr_n = 0, found = 0, last_read, idx = 0, name_size = strlen("database/") + strlen(user);
+	int fd, attr_n = 0, found = 0, last_read, idx = 0, name_size = strlen("database/") + strlen(user);
 	char buffer = 32, file_name[name_size], field[256];
 
 	sprintf(file_name, "database/%s", user);
 	bzero(field, 256);
 
-	result->msg = "";
-	result->md5 = "";
 
 	if ((fd = open(file_name, O_RDONLY)) == -1) return FALSE;
 
-	while (buffer != EOF && (last_read = read(fd, &buffer, 1)) >= 0) {
+	while ((last_read = read(fd, &buffer, 1)) >= 0) {
+		if (buffer == EOF) break;
 		if (last_read == 0) continue; // No se ha leido nada, probar otra vez.
 
 		if (buffer == ',') {
 			if (attr_n == 0 && !strcmp(field, id)) found = 1;
-			if (attr_n == 2 && found) strcpy(result->msg, field);
+			if (attr_n == 2 && found) {
+				result->msg = malloc(strlen(field));
+				strcpy(result->msg, field);
+			}
 			bzero(field, 256);
 			attr_n++;
 			idx = 0;
 			continue;
 		} else if (buffer == '\n') {
 			if (found) {
+				result->md5 = malloc(strlen(field));
 				strcpy(result->md5, field);
 				break;
 			}
@@ -166,6 +126,10 @@ query_1_svc(char *user, char *id, query_msg *result,  struct svc_req *rqstp)
 		idx ++;
 	}
 
+	if (!found) {
+		result->msg = "";
+		result->md5 = "";
+	}
 	close(fd);
 	retval = TRUE;
 
