@@ -13,6 +13,7 @@ typedef enum status {ONLINE, OFFLINE} status_t;
 typedef struct  msg {
     char message[BUFFER_SIZE]; // Message itself.
     char from[BUFFER_SIZE]; // User sending the message.
+    char md5[BUFFER_SIZE]; // Checksum of the message.
     uint32_t seq;
 
     struct msg *next;
@@ -42,8 +43,8 @@ uint8_t rm_usr(node_t **head, char *name);
 node_t * get_user(node_t *head, char *name);
 
 // Message list related functions.
-void add_msg(node_t *head, char *sender, char *receiver, char *message, uint32_t seq);
-void append_msg (msg_t *head, char *sender, char *message, uint32_t seq);
+void add_msg(node_t *head, char *sender, char *receiver, char *message, char *md5, uint32_t seq);
+void append_msg (msg_t *head, char *sender, char *message,char *md5, uint32_t seq);
 msg_t * pop_msg(node_t *head, char *name);
 
 void debug(node_t *head);
