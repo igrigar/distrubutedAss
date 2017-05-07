@@ -335,7 +335,7 @@ void rcv_message(int socket) {
             CLIENT *rpc;
             rpc = clnt_create(rpc_address, MSG_STORE, MSG_STORE_V, "TCP");
             if (rpc == NULL) {
-                clnt_pcreateerror("Error rpc binding");
+                printf("ERROR , SERVICE  NOT  AVAILABLE\n");
             } else {
                 int res;
                 insert_1(user_s->usr, user_r->usr, seq, msg, md5, &res, rpc);

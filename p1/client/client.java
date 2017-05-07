@@ -17,6 +17,7 @@ class client {
     /******************* ATTRIBUTES *******************/
 
     private static String _server   = null;
+    private static String _ws = null;
     private static int _port = -1;
     private static String _user = "";
     private static Thread listener;
@@ -156,7 +157,7 @@ class client {
                             while (b != 0) {msg += (char) b;b = in.read();}
 
                             System.out.println("Message: " + id + " FROM: " + from);
-                            System.out.print("  " + msg + "\n  MD5:\n  "+ md5 + "  END\nc> ");
+                            System.out.print("  " + msg + "\n  MD5:\n  "+ md5 + "\n  END\nc> ");
                         } else if (input.equals("SEND_MESS_ACK")) {
                             String id = "";
 
@@ -262,7 +263,7 @@ class client {
     static RC send(String user, String message) {
         int response = -1;
         String seq = "";
-        String md5 = "TEST MD5";
+        String md5 = "";
 
         if (_user.equals("")) {
             System.out.println("ERROR, NOT CONNECTED");
@@ -270,19 +271,19 @@ class client {
         }
 
         try {
-/*
             // Web Service.
-            Md5ServiceService service = new Md5ServiceService();
-            //Md5ServiceService service = new Md5ServiceService(new URL("http://localhost:8888/rs?wsdl"));
+            //Md5ServiceService service = new Md5ServiceService();
+            Md5ServiceService service = new Md5ServiceService(new URL("http://" + _ws + ":8888/rs?wsdl"));
             Md5Service port = service.getMd5ServicePort();
 
             md5 = port.md5(message);
             System.out.println(md5);
-            if (md5.equals("")) {
-                System.out.println("ERROR , SEND FAIL/ERROR IN MD5\nc> ");
-                return RC.ERROR;
-            }
-*/
+        } catch (Exception e) {
+            System.out.println("ERROR , SEND FAIL/ERROR IN MD5\nc> ");
+            return RC.ERROR;
+        }
+
+        try {
             // Creation of the socket
             Socket sc = new Socket(_server, _port);
 
@@ -399,14 +400,14 @@ class client {
       * @brief Prints program usage
       */
     static void usage() {
-        System.out.println("Usage: java -cp . client -s <server> -p <port>");
+        System.out.println("Usage: java -cp . client -s <server> -p <port> -w <WS IP>");
     }
 
     /**
       * @brief Parses program execution arguments 
       */
     static boolean parseArguments(String [] argv) {
-        Getopt g = new Getopt("client", argv, "ds:p:");
+        Getopt g = new Getopt("client", argv, "ds:p:w:");
 
         int c;
         String arg;
@@ -418,6 +419,9 @@ class client {
                 // break;
                 case 's':
                     _server = g.getOptarg();
+                    break;
+                case 'w':
+                    _ws = g.getOptarg();
                     break;
                 case 'p':
                     arg = g.getOptarg();
@@ -433,6 +437,8 @@ class client {
 
         if (_server == null)
             return false;
+
+        if (_ws == null) return false;
 
         if ((_port < 1024) || (_port > 65535)) {
             System.out.println("Error: Port must be in the range 1024 <= port <= 65535");

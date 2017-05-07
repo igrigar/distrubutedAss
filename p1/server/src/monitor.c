@@ -7,15 +7,13 @@
 #include "storage.h"
 
 int main (int argc, char *argv[]) {
-	if (argc < 2) {
-		printf ("usage: %s server_host\n", argv[0]);
+	if (argc != 4) {
+		printf ("usage: ./%s <user> <msg id> -s <ip>", argv[0]);
 		exit (1);
 	}
 
-	char *rpc_address = "127.0.0.1";
-
 	CLIENT *rpc;
-	rpc = clnt_create(rpc_address, MSG_STORE, MSG_STORE_V, "TCP");
+	rpc = clnt_create(argv[4], MSG_STORE, MSG_STORE_V, "TCP");
 
 	if (rpc == NULL) {
 		printf("ERROR , SERVICE NOT AVAILABLE\n");
