@@ -119,7 +119,7 @@ void debug(node_t *head) {
  * @Param *receiver: name of the user who receives the message.
  * @Param seq: sequence number associated to the message.
  */
-void add_msg(node_t *head, char *sender, char *receiver, char *message, uint32_t seq) {
+void add_msg(node_t *head, char *sender, char *receiver, char *message, char *md5, uint32_t seq) {
     node_t *current = head;
 
     while (strcmp(current->usr, receiver) != 0) // Looking for the name.
@@ -130,17 +130,17 @@ void add_msg(node_t *head, char *sender, char *receiver, char *message, uint32_t
         current->msg_list = (msg_t *) malloc(sizeof(msg_t));
 
         // Clean string fields.
-        bzero(current->msg_list->message, 256);
-        bzero(current->msg_list->from, 256);
+        bzero(current->msg_list->message, BUFFER_SIZE);
+        bzero(current->msg_list->from, BUFFER_SIZE);
+        bzero(current->msg_list->md5, BUFFER_SIZE);
 
-        //memcpy(current->msg_list->message, message, strlen(message));
-        //memcpy(current->msg_list->from, sender, strlen(sender));
         strcpy(current->msg_list->message, message);
         strcpy(current->msg_list->from, sender);
+        strcpy(current->msg_list->md5, md5);
 
         current->msg_list->seq = seq;
         current->msg_list->next = NULL;
-    } else append_msg(current->msg_list, sender, message, seq);
+    } else append_msg(current->msg_list, sender, message, md5, seq);
 }
 
 /*
@@ -152,7 +152,7 @@ void add_msg(node_t *head, char *sender, char *receiver, char *message, uint32_t
  * @Param *receiver: name of the user who receives the message.
  * @Param seq: sequence number associated to the message.
  */
-void append_msg (msg_t *head, char *sender, char *message, uint32_t seq) {
+void append_msg (msg_t *head, char *sender, char *message, char *md5, uint32_t seq) {
     msg_t *current = head;
 
     if (head == NULL) { // Head node.
@@ -178,9 +178,11 @@ void append_msg (msg_t *head, char *sender, char *message, uint32_t seq) {
     // Clean fields
     bzero(current->next->message, BUFFER_SIZE);
     bzero(current->next->from, BUFFER_SIZE);
+    bzero(current->next->md5, BUFFER_SIZE);
 
     strcpy(current->next->message, message);
     strcpy(current->next->from, sender);
+    strcpy(current->next->md5, md5);
 
     current->next->seq = seq;
     current->next->next = NULL;

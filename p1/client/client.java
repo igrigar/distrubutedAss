@@ -1,10 +1,8 @@
 import java.io.*;
-import java.lang.*;
 import java.net.*;
-import java.util.*;
 import gnu.getopt.Getopt;
-import client.Md5Service;
-import client.Md5ServiceService;
+//import client.Md5Service;
+//import client.Md5ServiceService;
 
 
 class client {
@@ -143,6 +141,7 @@ class client {
                             String from = "";
                             String id = "";
                             String msg = "";
+                            String md5 = "";
 
                             b = in.read();
                             while (b != 0) {from += (char) b; b = in.read();}
@@ -151,10 +150,13 @@ class client {
                             while (b != 0) {id += (char) b; b = in.read();}
 
                             b = in.read();
+                            while (b != 0) {md5 += (char) b;b = in.read();}
+
+                            b = in.read();
                             while (b != 0) {msg += (char) b;b = in.read();}
 
                             System.out.println("Message: " + id + " FROM: " + from);
-                            System.out.print("  " + msg + "\n  END\nc> ");
+                            System.out.print("  " + msg + "\n  MD5:\n  "+ md5 + "  END\nc> ");
                         } else if (input.equals("SEND_MESS_ACK")) {
                             String id = "";
 
@@ -260,6 +262,7 @@ class client {
     static RC send(String user, String message) {
         int response = -1;
         String seq = "";
+        String md5 = "TEST MD5";
 
         if (_user.equals("")) {
             System.out.println("ERROR, NOT CONNECTED");
@@ -267,17 +270,18 @@ class client {
         }
 
         try {
-						// Web Service.
-						Md5ServiceService service = new Md5ServiceService();
-						Md5Service port = service.getMd5ServicePort();
+/*
+            // Web Service.
+            Md5ServiceService service = new Md5ServiceService(new URL("http://localhost:8888/rs?wsdl"));
+            Md5Service port = service.getMd5ServicePort();
 
-						String md5 = port.md5(message);
-						System.out.println(md5);
-						if (md5.equals("")) {
-							System.out.println("ERROR , SEND FAIL/ERROR IN MD5\nc> ");
-							return RC.ERROR;
-						}
-					
+            md5 = port.md5(message);
+            System.out.println(md5);
+            if (md5.equals("")) {
+                System.out.println("ERROR , SEND FAIL/ERROR IN MD5\nc> ");
+                return RC.ERROR;
+            }
+*/
             // Creation of the socket
             Socket sc = new Socket(_server, _port);
 
@@ -289,7 +293,7 @@ class client {
             out.write((_user + "\0").getBytes());
             out.write((user + "\0").getBytes());
             out.write((message + "\0").getBytes());
-						out.write((md5 + "\0").getBytes());
+           out.write((md5 + "\0").getBytes());
 
             response = in.read();
             if (response == 0) seq = in.readLine();

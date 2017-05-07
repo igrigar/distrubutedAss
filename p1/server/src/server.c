@@ -279,7 +279,7 @@ void session_handler(void *args) {
  * @Param socket: file descriptor of the socket where the connection is created.
  */
 void rcv_message(int socket) {
-    char sender[BUFFER_SIZE], receiver[BUFFER_SIZE], msg[BUFFER_SIZE];
+    char sender[BUFFER_SIZE], receiver[BUFFER_SIZE], msg[BUFFER_SIZE], md5[BUFFER_SIZE];
     uint8_t response;
     node_t *user_s, *user_r;
 
@@ -287,11 +287,13 @@ void rcv_message(int socket) {
     bzero(sender, BUFFER_SIZE);
     bzero(receiver, BUFFER_SIZE);
     bzero(msg, BUFFER_SIZE);
+    bzero(md5, BUFFER_SIZE);
 
     // Receive all the data.
     if (read_line(socket, sender, BUFFER_SIZE) == -1) response = 2; // Read the username.
     else if (read_line(socket, receiver, BUFFER_SIZE) == -1) response = 2; // Read the username.
     else if (read_line(socket, msg, BUFFER_SIZE) == -1) response = 2; // Read the message.
+    else if (read_line(socket, md5, BUFFER_SIZE) == -1) response = 2; // Read the message.
     else {
         // Get the users if exist.
         u_list_lck();
@@ -320,7 +322,7 @@ void rcv_message(int socket) {
             while (user_r->busy) pthread_cond_wait(&user_r->unlock, &user_r->lock);
             ++user_r->busy;
 
-            add_msg(usr_list, sender, receiver, msg, user_s->seq++);
+            add_msg(usr_list, sender, receiver, msg, md5, user_s->seq++);
 
             --user_r->busy;
             pthread_cond_broadcast(&user_r->unlock);
@@ -336,7 +338,7 @@ void rcv_message(int socket) {
                 clnt_pcreateerror("Error rpc binding");
             } else {
                 int res;
-                insert_1(user_s->usr, user_r->usr, seq, msg, "CHKSM", &res, rpc);
+                insert_1(user_s->usr, user_r->usr, seq, msg, md5, &res, rpc);
                 if (res == -1) {
                     perror("Init rpc");
                 }
@@ -410,10 +412,11 @@ void flush_msg_list(char *name) {
             write_line(sock, init, strlen(init));
             write_line(sock, sender, strlen(sender));
             write_line(sock, sequence, strlen(sequence));
+            write_line(sock, msg->md5, strlen(msg->md5));
             write_line(sock, msg->message, strlen(msg->message));
             printf("SEND MESSAGE %s FROM %s TO %s\ns> ", sequence, sender, name);
 
-            add_msg(usr_list, "SEND_MESS_ACK", sender, "SEND_MESS_ACK", msg->seq);
+            add_msg(usr_list, "SEND_MESS_ACK", sender, "SEND_MESS_ACK", "", msg->seq);
 
             node_t *user_s = get_user(usr_list, sender);
             if (user_s != NULL && user_s->status == ONLINE) // Send the message ACK.

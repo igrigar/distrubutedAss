@@ -33,13 +33,18 @@ LDLIBS = -lpthread -llist
 
 .PHONY: lib server
 
-all: lib server
+all: lib server storage_s monitor
 
 lib:
 	$(CC) $(INCDIR) $(CFLAGS) -fpic -shared -o lib/liblist.so lib/list.c
 
 server:
 	$(CC) $(INCDIR) $(LDFLAGS) $(LDLIBS) $(CFLAGS) -o server src/server.c rpc/storage_clnt.c rpc/storage_xdr.c
-	#$(CC) -o server server.o rpc/*.o
+
+monitor:
+	$(CC) $(INCDIR) $(CFLAGS) -o monitor src/monitor.c rpc/storage_clnt.c rpc/storage_xdr.c
+
+storage_s:
+	$(CC) $(INCDIR) $(CFLAGS) -o storage_s src/storage_server.c rpc/storage_svc.c rpc/storage_xdr.c
 clean:
-	rm server lib/liblist.so
+	rm server storage_s monitor lib/liblist.so
