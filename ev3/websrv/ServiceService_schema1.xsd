@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xs:schema version="1.0" targetNamespace="http://ws/" xmlns:tns="http://ws/" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <xs:element name="prnt_str" type="tns:prnt_str"/>
+
+  <xs:element name="prnt_strResponse" type="tns:prnt_strResponse"/>
+
+  <xs:complexType name="prnt_str">
+    <xs:sequence>
+      <xs:element name="arg0" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="prnt_strResponse">
+    <xs:sequence/>
+  </xs:complexType>
+</xs:schema>
+
